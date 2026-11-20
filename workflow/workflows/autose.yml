@@ -47,7 +47,7 @@ concurrency:
 
 env:
   PYTHON_VERSION: '3.12'
-  AUTOSE_BUILD_MODEL: ${{ vars.AUTOSE_BUILD_MODEL || 'gemini/gemini-3.8-flash' }}
+  AUTOSE_BUILD_MODELS: ${{ vars.AUTOSE_BUILD_MODELS || 'gemini/gemini-3-flash-preview,gemini/gemini-3.5-flash,gemini/gemini-3.8-flash,gemini/gemini-3.1-flash-lite' }}
   AUTOSE_REVIEW_MODELS: ${{ vars.AUTOSE_REVIEW_MODELS || 'github/openai/gpt-4.1-mini,groq/llama-3.3-70b-versatile' }}
 
 jobs:
@@ -87,7 +87,7 @@ jobs:
     needs: gate
     if: needs.gate.outputs.mode == 'build'
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 120   # run 3 hit 60 while the free model was busy
     permissions:
       contents: write        # push the autose/issue-N branch (never master: it is protected)
       pull-requests: write   # open / update the PR
