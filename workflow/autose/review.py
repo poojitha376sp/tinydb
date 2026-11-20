@@ -143,7 +143,7 @@ def main(argv=None):
     if args.variant == 'baseline':
         pr = gh.api(f'repos/{gh.REPO}/pulls/{args.pr}')
         task += f'\nPull request description by its author:\n{pr.get("body") or ""}\n'
-        models, prompt = [config.BUILD_MODEL], 'reviewer_baseline'
+        models, prompt = config.BUILD_MODELS, 'reviewer_baseline'
     else:
         models, prompt = config.REVIEW_MODELS, 'reviewer'
 
