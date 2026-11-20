@@ -1,0 +1,7 @@
+# Agent harness (Lecture 9: mini-swe-agent) and model access through LiteLLM
+mini-swe-agent==2.4.6
+# Project test and type-check tools, versions as in tinydb's uv.lock
+pytest==9.1.1
+pytest-cov==7.1.0
+mypy==2.4.0
+pyyaml==6.0.3
