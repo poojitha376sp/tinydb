@@ -20,7 +20,16 @@ CI_WAIT_SECONDS = 1800           # stage 5: max wait for the dispatched CI run
 
 # ADR-006: free tiers, two model families. gemini-2.5-flash was closed to new keys
 # (404 on the first real run, 2026-11-20), so the default moved to gemini-3.8-flash.
-BUILD_MODEL = os.environ.get('AUTOSE_BUILD_MODEL', 'gemini/gemini-3.8-flash')
+# Run 3 (same day) lost its hour to 503 "high demand" on gemini-3.8-flash, so the build roles
+# now take a fallback chain too; a busy model hands over to the next one (agents.FallbackModel).
+# Order from a one-request probe of the key that day: 3-flash-preview answered in 2s, 3.5-flash
+# in 20s, 3.8-flash and 3.7-flash were 503. All are Gemini, so the Reviewer stays another family.
+BUILD_MODELS = [m.strip() for m in os.environ.get(
+    'AUTOSE_BUILD_MODELS',
+    'gemini/gemini-3-flash-preview,gemini/gemini-3.5-flash,gemini/gemini-3.8-flash,gemini/gemini-3.1-flash-lite',
+).split(',') if m.strip()]
+BUILD_MODEL = BUILD_MODELS[0]
+GEMINI_THINKING = os.environ.get('AUTOSE_GEMINI_THINKING', 'low')
 REVIEW_MODELS = [m.strip() for m in os.environ.get(
     'AUTOSE_REVIEW_MODELS',
     'github/openai/gpt-4.1-mini,groq/llama-3.3-70b-versatile',

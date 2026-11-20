@@ -27,7 +27,7 @@ PROMPTS = Path(__file__).resolve().parent.parent / 'prompts'
 OBSERVATION = (
     "{% if output.exception_info -%}<exception>{{output.exception_info}}</exception>\n{% endif -%}"
     "<returncode>{{output.returncode}}</returncode>\n"
-    "{% if output.output | length < 8000 -%}<output>\n{{ output.output -}}\n</output>"
+    "{% if output.output | length < 24000 -%}<output>\n{{ output.output -}}\n</output>"
     "{%- else -%}<warning>Output too long; use head, tail, grep or sed -n to see less.</warning>\n"
     "<output_head>\n{{ output.output[:4000] }}\n</output_head>\n"
     "<output_tail>\n{{ output.output[-4000:] }}\n</output_tail>{%- endif -%}"
@@ -95,6 +95,11 @@ class FallbackModel(LitellmTextbasedModel):
     SWITCH = (litellm.exceptions.AuthenticationError, litellm.exceptions.NotFoundError,
               litellm.exceptions.PermissionDeniedError, litellm.exceptions.BadRequestError,
               litellm.exceptions.ContextWindowExceededError)
+    # Busy or flaky provider: try the next model in the chain after BUSY_SWITCH_AFTER hits in a row.
+    BUSY = (litellm.exceptions.RateLimitError, litellm.exceptions.ServiceUnavailableError,
+            litellm.exceptions.InternalServerError, litellm.exceptions.APIConnectionError,
+            litellm.exceptions.Timeout)
+    BUSY_SWITCH_AFTER = 2
     # mini-swe-agent retries every other exception; the token cap must stop at once.
     abort_exceptions = LitellmTextbasedModel.abort_exceptions + [TokenCapExceeded]
 
@@ -104,28 +109,49 @@ class FallbackModel(LitellmTextbasedModel):
                          cost_tracking='ignore_errors')
         self.role, self.models, self.index, self.rate_hits = role, list(models), 0, 0
         self.used_models = []
+        self.switches = []        # (from, to, reason) for stage_results.json
         USAGE.setdefault(role, Usage())
 
+    def _switch(self, reason: str, drop: bool) -> bool:
+        """Move to the next model. ``drop`` removes a model that can never work (404, auth)."""
+        if len(self.models) < 2:
+            return False
+        old = self.models[self.index]
+        if drop:
+            self.models.pop(self.index)
+            self.index %= len(self.models)
+        else:
+            self.index = (self.index + 1) % len(self.models)   # busy models get another turn later
+        self.rate_hits = 0
+        self.switches.append((old, self.models[self.index], reason))
+        return True
+
     def _query(self, messages, **kwargs):
+        busy_switches = 0
         while True:
             name = self.models[self.index]
             model, extra = _provider_kwargs(name)
-            if not name.startswith('gemini/gemini-3'):
-                extra = {'temperature': 0.2, **extra}   # Gemini 3 loops at low temperature; keep its default
+            if name.startswith('gemini/gemini-3'):
+                # Gemini 3 loops at low temperature, so keep its default; its default thinking
+                # (17.5k reasoning tokens on run 3's first step) is slow, so ask for less.
+                extra = {'reasoning_effort': config.GEMINI_THINKING, **extra}
+            else:
+                extra = {'temperature': 0.2, **extra}
             try:
-                resp = litellm.completion(model=model, messages=messages,
+                resp = litellm.completion(model=model, messages=messages, timeout=300,
                                           **(self.config.model_kwargs | extra | kwargs))
-            except self.SWITCH:
-                if self.index + 1 < len(self.models):
-                    self.index += 1
+            except self.SWITCH as e:
+                if self._switch(type(e).__name__, drop=True):
                     continue
                 raise
-            except litellm.exceptions.RateLimitError:
+            except self.BUSY as e:
                 self.rate_hits += 1
-                if self.rate_hits >= 3 and self.index + 1 < len(self.models):
-                    self.index, self.rate_hits = self.index + 1, 0
+                # at most one pass round the chain per call; then mini-swe-agent's backoff waits
+                if (self.rate_hits >= self.BUSY_SWITCH_AFTER and busy_switches < len(self.models) - 1
+                        and self._switch(type(e).__name__, drop=False)):
+                    busy_switches += 1
                     continue
-                raise  # mini-swe-agent's retry waits and calls again
+                raise
             self.rate_hits = 0
             usage = getattr(resp, 'usage', None)
             u = USAGE[self.role]
@@ -179,7 +205,7 @@ def load_prompt(name: str) -> str:
 def run_agent(role: str, prompt_name: str, task: str, workdir: Path, trajectory: Path,
               models=None) -> dict:
     """Run one agent session; return exit status, steps, tokens and blocked commands."""
-    models = models or [config.BUILD_MODEL]
+    models = models or config.BUILD_MODELS
     model = FallbackModel(role, models)
     env = GuardedEnvironment(role, workdir)
     system = SYSTEM_COMMON.format(allowed=', '.join(sorted(guard.ALLOW[role]))) + '\n' + load_prompt(prompt_name)
@@ -212,4 +238,5 @@ def run_agent(role: str, prompt_name: str, task: str, workdir: Path, trajectory:
         'models': model.used_models,
         'blocked': env.blocked,
         'error': error,
+        'switches': model.switches,
     }
