@@ -51,7 +51,7 @@ the issue text is wrapped as untrusted data; the run stops at a token cap.
 
 | Role | Model | Where the key comes from |
 |---|---|---|
-| Analyst, Test Author, Builder | `gemini/gemini-2.5-flash` | Google AI Studio key, secret `GEMINI_API_KEY` |
+| Analyst, Test Author, Builder | `gemini/gemini-3.8-flash` | Google AI Studio key, secret `GEMINI_API_KEY` |
 | Reviewer | `openai/gpt-4.1-mini` through GitHub Models | the workflow's own `GITHUB_TOKEN` (`models: read`) |
 | Reviewer fallback | `groq/llama-3.3-70b-versatile` | Groq key, secret `GROQ_API_KEY` (optional) |
 

@@ -18,8 +18,9 @@ RUN_TOKEN_CAP = int(os.environ.get('AUTOSE_TOKEN_CAP', 3_000_000))
 COMMAND_TIMEOUT = 120            # seconds per shell command an agent runs
 CI_WAIT_SECONDS = 1800           # stage 5: max wait for the dispatched CI run
 
-# ADR-006: free tiers, two model families
-BUILD_MODEL = os.environ.get('AUTOSE_BUILD_MODEL', 'gemini/gemini-2.5-flash')
+# ADR-006: free tiers, two model families. gemini-2.5-flash was closed to new keys
+# (404 on the first real run, 2026-11-20), so the default moved to gemini-3.8-flash.
+BUILD_MODEL = os.environ.get('AUTOSE_BUILD_MODEL', 'gemini/gemini-3.8-flash')
 REVIEW_MODELS = [m.strip() for m in os.environ.get(
     'AUTOSE_REVIEW_MODELS',
     'github/openai/gpt-4.1-mini,groq/llama-3.3-70b-versatile',
