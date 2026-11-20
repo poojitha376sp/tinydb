@@ -115,7 +115,7 @@ def test_stages_1_to_4(scripted, tmp_path):
     args = orchestrator.parse_args(['--issue', '1', '--stop-after', '4', '--out', str(out)])
     result = orchestrator.Run(args).main()
     res = json.loads((out / 'stage_results.json').read_text())
-    assert result == 'stopped', res
+    assert result == 'stopped-after-4', res
     assert res['result'] == 'stopped-after-4', res
     assert res['stages']['1-requirements']['status'] == 'pass'
     assert res['stages']['1-requirements']['agent']['blocked'], 'curl should have been blocked'
@@ -238,3 +238,22 @@ def test_post_review_routing(monkeypatch, tmp_path, verdict, route, rnd, expect)
     monkeypatch.setattr(state, 'save', lambda st: None)
     post_review.main(['--dir', str(tmp_path)])
     assert events[0] == 'comment' and expect in events, events
+
+
+def test_model_unavailable_stops_at_once(scripted, tmp_path, monkeypatch):
+    """First real run: the model 404'd. The run must stop at once with the real reason."""
+    calls = []
+
+    def gone(self, messages, **kwargs):
+        calls.append(1)
+        raise litellm.exceptions.NotFoundError(message='model gemini-x is no longer available',
+                                               model='gemini-x', llm_provider='gemini')
+
+    monkeypatch.setattr(agents.FallbackModel, '_query', gone)
+    out = tmp_path / 'out2'
+    args = orchestrator.parse_args(['--issue', '1', '--out', str(out)])
+    assert orchestrator.Run(args).main() == 'stopped'
+    res = json.loads((out / 'stage_results.json').read_text())
+    assert res['stopped']['stage'] == '1-requirements'
+    assert 'could not run' in res['stopped']['reason'] and 'no longer available' in res['stopped']['reason']
+    assert len(calls) == 1, 'a missing model must not be retried'

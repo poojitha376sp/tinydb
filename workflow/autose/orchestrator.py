@@ -88,6 +88,13 @@ class Run:
                 reverted.append(rel)
         return reverted
 
+    def agent_ran(self, stage, run):
+        """A model or harness error is not a gate failure: stop at once and say why (ADR-009)."""
+        status = run.get('exit_status', '')
+        if status.startswith('Error') or status.startswith('TokenCapExceeded'):
+            self.results['stages'][stage] = {'status': 'error', 'summary': status, 'agent': run}
+            raise Stop(stage, f"the agent could not run ({status}): {run.get('error', '')[:400]}")
+
     # --- stages ------------------------------------------------------------------
 
     def issue_block(self):
@@ -107,6 +114,7 @@ class Run:
                     f'Write the specification to _autose_out/spec.md.{feedback}')
             run = agents.run_agent('analyst', 'analyst_spec', task, tree,
                                    self.out / 'trajectories' / f'analyst_spec_{attempt}.json')
+            self.agent_ran('1-requirements', run)
             self.enforce_writes('analyst', tree)
             spec_path = tree / '_autose_out/spec.md'
             text = spec_path.read_text() if spec_path.exists() else ''
@@ -138,6 +146,7 @@ class Run:
                     f'{self.issue_block()}\n\nWrite _autose_out/design.md.{feedback}')
             run = agents.run_agent('analyst', 'analyst_design', task, tree,
                                    self.out / 'trajectories' / f'analyst_design_{attempt}_{int(t0)}.json')
+            self.agent_ran('2-design', run)
             self.enforce_writes('analyst', tree)
             path = tree / '_autose_out/design.md'
             text = path.read_text() if path.exists() else ''
@@ -161,6 +170,7 @@ class Run:
                     f'{", ".join(acs)}.{feedback}')
             run = agents.run_agent('test_author', 'test_author', task, tree,
                                    self.out / 'trajectories' / f'test_author_{attempt}.json')
+            self.agent_ran('4a-tests', run)
             self.enforce_writes('test_author', tree)
             extra = [p for p in sandbox.changed_files(self.base, tree)['added']
                      if p.startswith('tests/') and p != self.test_file]
@@ -197,6 +207,7 @@ class Run:
                      'was not accepted.' if feedback else ''))
             run = agents.run_agent('builder', 'builder', task, tree,
                                    self.out / 'trajectories' / f'builder_{attempt}_{int(t0)}.json')
+            self.agent_ran('3-implementation', run)
             reverted = self.enforce_writes('builder', tree)
             changed = sandbox.changed_files(self.base, tree)
             build = checks.check_build(tree, changed, planned)
@@ -371,7 +382,7 @@ class Run:
                 self.st.status = 'stopped'
                 self.st.note = 'experiment run: stopped after stage 4 as requested'
                 self.finish('stopped-after-4')
-                return 'stopped'
+                return 'stopped-after-4'
             pr = self.stage_release(spec, acs, tree, changed, tests_src)
             self.st.status = 'pr_open'
             self.finish('pr_open', pr=pr['number'])
@@ -408,4 +419,6 @@ def parse_args(argv=None):
 
 
 if __name__ == '__main__':
-    Run(parse_args()).main()
+    import sys
+    # A stopped run must show as failed (red) in the Actions list, not green.
+    sys.exit(1 if Run(parse_args()).main() == 'stopped' else 0)

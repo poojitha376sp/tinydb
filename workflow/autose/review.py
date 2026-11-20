@@ -154,6 +154,8 @@ def main(argv=None):
         raw = json.loads(raw_path.read_text())
     except Exception as e:
         raw = {'verdict': None, 'summary': f'review.json missing or invalid: {e}'}
+        if run['exit_status'].startswith('Error'):
+            raw['summary'] = f"the reviewer could not run ({run['exit_status']}): {run.get('error', '')[:400]}"
     result = judge(raw, executed_commands(traj, run['blocked']), tree, args.variant)
     result.update({'pr': args.pr, 'issue': args.issue, 'round': args.round, 'variant': args.variant,
                    'agent': run, 'tokens': agents.total_tokens(), 'run_url': gh.run_url()})
