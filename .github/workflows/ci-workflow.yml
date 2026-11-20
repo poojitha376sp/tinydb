@@ -4,6 +4,9 @@ on:
   push: {}
   pull_request:
     branches: [ master ]
+  # AutoSE A3: PRs opened with GITHUB_TOKEN do not trigger pull_request runs,
+  # so the AutoSE release stage starts CI explicitly (ADR-007).
+  workflow_dispatch: {}
 
 jobs:
   build:
@@ -52,6 +55,8 @@ jobs:
       if: ${{ contains(matrix.python-version, '3.14') }}
     - name: Upload coverage result
       if: ${{ matrix.os != 'windows-latest' }}
+      # AutoSE A3: the fork is not registered on coveralls.io
+      continue-on-error: true
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         COVERALLS_FLAG_NAME: ${{ matrix.os }}-py${{ matrix.python-version }}
@@ -67,6 +72,8 @@ jobs:
     - name: Install coveralls
       run: pip3 install --upgrade coveralls
     - name: Finished
+      # AutoSE A3: the fork is not registered on coveralls.io
+      continue-on-error: true
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       run: coveralls --finish
