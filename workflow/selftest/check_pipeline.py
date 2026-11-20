@@ -288,3 +288,26 @@ def test_busy_model_hands_over(monkeypatch):
     for _ in range(3):                            # a chain of one never loops; backoff handles it
         with pytest.raises(litellm.exceptions.ServiceUnavailableError):
             one._query([])
+
+
+def test_daily_quota_drops_the_model(monkeypatch):
+    """Run 4: 20 requests per day per model. A used-up model is dropped for the rest of the run;
+    when none is left the agent stops with QuotaExhausted instead of retrying for hours."""
+    monkeypatch.setattr(agents, 'EXHAUSTED', set())
+    seen = []
+
+    def fake_completion(model, messages, **kw):
+        seen.append(model)
+        if model in ('gemini/a', 'gemini/b'):
+            raise litellm.exceptions.RateLimitError(
+                message='Quota exceeded ... GenerateRequestsPerDayPerProjectPerModel-FreeTier',
+                model=model, llm_provider='gemini')
+        return litellm.ModelResponse(choices=[{'message': {'role': 'assistant', 'content': 'ok'}}])
+
+    monkeypatch.setattr(litellm, 'completion', fake_completion)
+    m = agents.FallbackModel('analyst', ['gemini/a', 'gemini/c'])
+    m._query([])
+    assert m.models == ['gemini/c'] and seen == ['gemini/a', 'gemini/c']
+    assert agents.FallbackModel('builder', ['gemini/a', 'gemini/c']).models == ['gemini/c']
+    with pytest.raises(agents.QuotaExhausted):
+        agents.FallbackModel('builder', ['gemini/b'])._query([])

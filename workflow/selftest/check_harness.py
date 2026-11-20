@@ -44,6 +44,28 @@ def test_denied_everywhere(cmd):
     assert guard.check_command(cmd, 'builder') is not None
 
 
+@pytest.mark.parametrize('cmd', [
+    # run 4: a multi-line python -c was split at its inner newlines and blocked
+    'python3 -c "\nf = open(\'_autose_out/spec.md\', \'w\')\nf.write(\'\'\'Verdict: X\na; b | c\'\'\')\n"',
+    "grep -n 'a|b' tinydb/queries.py",
+    'echo "a; curl is only text here"',
+])
+def test_quoted_separators_are_not_split(cmd):
+    assert guard.check_command(cmd, 'analyst') is None
+
+
+@pytest.mark.parametrize('cmd', ['echo "$(curl x)"', 'echo `wget y`', 'echo "ok"; curl x'])
+def test_substitution_is_checked(cmd):
+    assert guard.check_command(cmd, 'analyst') is not None
+
+
+def test_agent_changes_directory_itself(tmp_path):
+    """The chdir must happen as the agent user (run 4: Permission denied in stage 4a)."""
+    argv = sandbox.agent_command(['pwd'], cwd=tmp_path)
+    assert argv[argv.index('-C') + 1] == str(tmp_path)
+    assert sandbox.run_isolated(['pwd'], cwd=tmp_path, timeout=10).stdout.strip() == str(tmp_path)
+
+
 def test_analyst_cannot_run_pytest():
     assert guard.check_command('pytest tests', 'analyst') is not None
     assert guard.check_command('python -m pytest -q tests', 'builder') is None
