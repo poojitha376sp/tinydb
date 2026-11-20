@@ -10,6 +10,8 @@ Rules checked automatically:
 - Every test must fail on the current code. A test that already passes does not test the change.
 - Use only the public API described in the spec (`from tinydb import TinyDB, Query, where`,
   `from tinydb.storages import MemoryStorage`, `tmp_path` for files). No network, no sleeps.
+- Give every test its own fresh database: `TinyDB(storage=MemoryStorage)` or a file under
+  `tmp_path`. Never `TinyDB(':memory:')`: in TinyDB that is a real file shared by all tests.
 - Test exactly what the criterion states, nothing more. Do not change any other file.
 
 Write the file with a heredoc, run it with `python -m pytest -q -o addopts= -p no:cacheprovider <file>`
