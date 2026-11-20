@@ -1,0 +1,237 @@
+# AutoSE A3: issue in, independently reviewed pull request out.
+# Design: architecture/decisions/ADR-001 ... ADR-010. Agent code: workflow/autose/.
+#
+# Start it by adding the label "autose" to an issue, or by commenting "/autose" on an
+# issue (collaborators only). A person always makes the final merge decision.
+name: autose
+
+on:
+  issues:
+    types: [labeled]
+  issue_comment:
+    types: [created]
+  workflow_dispatch:
+    inputs:
+      issue:
+        description: Issue number to work on
+        required: true
+      round:
+        description: Review round (0 for the first run)
+        default: '0'
+      resume_from:
+        description: Stage to start at (1 = requirements, 2 = design, 3 = implementation)
+        default: '1'
+      prev_run_id:
+        description: Run whose artifacts (spec, design, tests, review) a later round reuses
+        default: ''
+      arch_context:
+        description: "Experiment E2: architecture context for the design stage (full or map)"
+        default: full
+      stop_after:
+        description: "Experiments: 4 = stop after testing, 5 = full run with PR"
+        default: '5'
+      review_pr:
+        description: "Experiment E1: only review this PR (seeded PRs); skips stages 1-5"
+        default: ''
+      review_variant:
+        description: "Experiment E1: independent or baseline reviewer"
+        default: independent
+
+# Nothing by default; every job asks for exactly what it needs (ADR-005).
+permissions: {}
+
+# ADR-010: one run per issue at a time; a second trigger waits instead of cancelling.
+concurrency:
+  group: autose-${{ github.event.issue.number || inputs.issue }}-${{ inputs.review_pr || 'main' }}
+  cancel-in-progress: false
+
+env:
+  PYTHON_VERSION: '3.12'
+  AUTOSE_BUILD_MODEL: ${{ vars.AUTOSE_BUILD_MODEL || 'gemini/gemini-2.5-flash' }}
+  AUTOSE_REVIEW_MODELS: ${{ vars.AUTOSE_REVIEW_MODELS || 'github/openai/gpt-4.1-mini,groq/llama-3.3-70b-versatile' }}
+
+jobs:
+  # ADR-010: decide whether this event may start a run. No checkout, no secrets.
+  gate:
+    runs-on: ubuntu-latest
+    permissions: {}
+    if: >-
+      (github.event_name == 'issues' && github.event.label.name == 'autose'
+        && github.event.sender.type == 'User')
+      || (github.event_name == 'issue_comment' && startsWith(github.event.comment.body, '/autose')
+        && github.event.sender.type == 'User'
+        && contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.comment.author_association))
+      || github.event_name == 'workflow_dispatch'
+    outputs:
+      issue: ${{ steps.which.outputs.issue }}
+      mode: ${{ steps.which.outputs.mode }}
+    steps:
+      - id: which
+        env:
+          EVENT: ${{ github.event_name }}
+          ISSUE_FROM_EVENT: ${{ github.event.issue.number }}
+          IS_PR: ${{ github.event.issue.pull_request != null }}
+          INPUT_ISSUE: ${{ inputs.issue }}
+          REVIEW_PR: ${{ inputs.review_pr }}
+        run: |
+          if [ "$EVENT" = "workflow_dispatch" ]; then issue="$INPUT_ISSUE"; else issue="$ISSUE_FROM_EVENT"; fi
+          case "$issue" in ''|*[!0-9]*) echo "bad issue number"; exit 1;; esac
+          mode=build
+          if [ -n "$REVIEW_PR" ]; then mode=review_only; fi
+          if [ "$IS_PR" = "true" ]; then echo "/autose on a pull request: not supported, comment on the issue"; exit 1; fi
+          echo "issue=$issue" >> "$GITHUB_OUTPUT"
+          echo "mode=$mode" >> "$GITHUB_OUTPUT"
+
+  # Stages 1-5. Agents run as an unprivileged user without any token (ADR-005).
+  orchestrate:
+    needs: gate
+    if: needs.gate.outputs.mode == 'build'
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    permissions:
+      contents: write        # push the autose/issue-N branch (never master: it is protected)
+      pull-requests: write   # open / update the PR
+      issues: write          # status comment and labels
+      actions: write         # dispatch CI (ADR-007) and download earlier artifacts
+    outputs:
+      status: ${{ steps.run.outputs.status }}
+      pr: ${{ steps.run.outputs.pr }}
+      issue: ${{ steps.run.outputs.issue }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: master
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+      - name: Install agent harness and project test tools
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r workflow/requirements.txt
+      - name: Create the sandbox user for agents
+        run: |
+          sudo useradd --system --no-create-home --shell /usr/sbin/nologin autose-agent
+          sudo chmod 750 "$HOME"
+          echo "AUTOSE_SANDBOX_USER=autose-agent" >> "$GITHUB_ENV"
+      - name: Make sure the labels exist
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          for l in autose ready-for-human needs-human autose-failed; do
+            gh label create "$l" --repo "$GITHUB_REPOSITORY" --force >/dev/null
+          done
+      - name: Run stages 1-5
+        id: run
+        working-directory: workflow
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+          ISSUE: ${{ needs.gate.outputs.issue }}
+          ROUND: ${{ inputs.round || '0' }}
+          RESUME: ${{ inputs.resume_from || '1' }}
+          PREV: ${{ inputs.prev_run_id }}
+          ARCH: ${{ inputs.arch_context || 'full' }}
+          STOP_AFTER: ${{ inputs.stop_after || '5' }}
+        run: |
+          python -m autose.orchestrator --issue "$ISSUE" --round "$ROUND" --resume-from "$RESUME" \
+            --prev-run-id "$PREV" --arch-context "$ARCH" --stop-after "$STOP_AFTER" \
+            --out "$GITHUB_WORKSPACE/out"
+      - name: Upload stage artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: autose-issue-${{ needs.gate.outputs.issue }}-round-${{ inputs.round || '0' }}
+          path: out/
+          if-no-files-found: warn
+
+  # Stage 6, part 1: the Reviewer. Its token can only read and call GitHub Models (ADR-008).
+  review-run:
+    needs: [gate, orchestrate]
+    if: >-
+      always() && (needs.gate.outputs.mode == 'review_only'
+        || (needs.gate.result == 'success' && needs.orchestrate.outputs.status == 'pr_open'))
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      issues: read
+      pull-requests: read
+      models: read
+    steps:
+      # The harness always comes from master; the PR under review is only data (ADR-008).
+      - uses: actions/checkout@v4
+        with:
+          ref: master
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          ref: refs/pull/${{ inputs.review_pr || needs.orchestrate.outputs.pr }}/head
+          path: pr_head
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+      - name: Install agent harness and project test tools
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r workflow/requirements.txt
+      - name: Create the sandbox user for agents
+        run: |
+          sudo useradd --system --no-create-home --shell /usr/sbin/nologin autose-agent
+          sudo chmod 750 "$HOME"
+          echo "AUTOSE_SANDBOX_USER=autose-agent" >> "$GITHUB_ENV"
+      - name: Independent review
+        working-directory: workflow
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GITHUB_MODELS_TOKEN: ${{ github.token }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+          PR: ${{ inputs.review_pr || needs.orchestrate.outputs.pr }}
+          ISSUE: ${{ needs.gate.outputs.issue }}
+          ROUND: ${{ inputs.round || '0' }}
+          VARIANT: ${{ inputs.review_variant || 'independent' }}
+        run: |
+          python -m autose.review --pr "$PR" --issue "$ISSUE" --round "$ROUND" \
+            --variant "$VARIANT" --pr-dir "$GITHUB_WORKSPACE/pr_head" --out "$GITHUB_WORKSPACE/review_out"
+      - name: Upload review artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: autose-review-pr-${{ inputs.review_pr || needs.orchestrate.outputs.pr }}-round-${{ inputs.round || '0' }}-${{ inputs.review_variant || 'independent' }}
+          path: review_out/
+
+  # Stage 6, part 2: post the review and route the next round. No agent runs here.
+  review-post:
+    needs: [gate, orchestrate, review-run]
+    if: always() && needs.review-run.result == 'success'
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+      issues: write
+      actions: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: master
+          sparse-checkout: workflow
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+      - uses: actions/download-artifact@v4
+        with:
+          name: autose-review-pr-${{ inputs.review_pr || needs.orchestrate.outputs.pr }}-round-${{ inputs.round || '0' }}-${{ inputs.review_variant || 'independent' }}
+          path: review_out
+      - name: Post review and route
+        working-directory: workflow
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EXPERIMENT: ${{ needs.gate.outputs.mode == 'review_only' }}
+        run: |
+          if [ "$EXPERIMENT" = "true" ]; then extra=--experiment; else extra=; fi
+          python -m autose.post_review --dir "$GITHUB_WORKSPACE/review_out" $extra
