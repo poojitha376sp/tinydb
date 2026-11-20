@@ -100,7 +100,7 @@ class FallbackModel(LitellmTextbasedModel):
 
     def __init__(self, role: str, models: list):
         super().__init__(model_name=models[0], observation_template=OBSERVATION,
-                         model_kwargs={'drop_params': True, 'temperature': 0.2},
+                         model_kwargs={'drop_params': True},
                          cost_tracking='ignore_errors')
         self.role, self.models, self.index, self.rate_hits = role, list(models), 0, 0
         self.used_models = []
@@ -110,6 +110,8 @@ class FallbackModel(LitellmTextbasedModel):
         while True:
             name = self.models[self.index]
             model, extra = _provider_kwargs(name)
+            if not name.startswith('gemini/gemini-3'):
+                extra = {'temperature': 0.2, **extra}   # Gemini 3 loops at low temperature; keep its default
             try:
                 resp = litellm.completion(model=model, messages=messages,
                                           **(self.config.model_kwargs | extra | kwargs))
@@ -191,13 +193,16 @@ def run_agent(role: str, prompt_name: str, task: str, workdir: Path, trajectory:
     )
     before = USAGE.get(role, Usage()).total
     sandbox.give_to_agent(workdir)
+    error = ''
     try:
         result = agent.run(task=task)
         status = result.get('exit_status', '')
+        error = str(result.get('exception_str', ''))[:600]
     except TokenCapExceeded as e:
         status = f'TokenCapExceeded: {e}'
     except Exception as e:   # model or harness failure: record it, let the gate decide
-        status = f'Error: {type(e).__name__}: {str(e)[:300]}'
+        status = f'Error: {type(e).__name__}'
+        error = str(e)[:600]
     finally:
         sandbox.take_back(workdir)
     return {
@@ -206,4 +211,5 @@ def run_agent(role: str, prompt_name: str, task: str, workdir: Path, trajectory:
         'tokens': USAGE[role].total - before,
         'models': model.used_models,
         'blocked': env.blocked,
+        'error': error,
     }
