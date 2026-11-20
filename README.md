@@ -51,7 +51,7 @@ the issue text is wrapped as untrusted data; the run stops at a token cap.
 
 | Role | Model | Where the key comes from |
 |---|---|---|
-| Analyst, Test Author, Builder | Gemini chain: `gemini-3-flash-preview`, `gemini-3.5-flash`, `gemini-3.8-flash`, `gemini-3.1-flash-lite` (a busy model hands over to the next) | Google AI Studio key, secret `GEMINI_API_KEY` |
+| Analyst, Test Author, Builder | a chain of free Google models, starting with `gemini-3.5-flash-lite` and `gemini-3.1-flash-lite` (500 free requests a day each) (full list in [config.py](workflow/autose/config.py)); a busy model hands over to the next, a model whose daily quota is used up is dropped | Google AI Studio key, secret `GEMINI_API_KEY` |
 | Reviewer | `openai/gpt-4.1-mini` through GitHub Models | the workflow's own `GITHUB_TOKEN` (`models: read`) |
 | Reviewer fallback | `groq/llama-3.3-70b-versatile` | Groq key, secret `GROQ_API_KEY` (optional) |
 
