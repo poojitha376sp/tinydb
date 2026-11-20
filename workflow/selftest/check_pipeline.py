@@ -340,3 +340,19 @@ def test_small_models_get_a_fitted_conversation(monkeypatch):
 
     agents.FallbackModel('builder', ['gemini/gemini-3.5-flash-lite'])._query(history)
     assert sent[-1][1] is history and 'max_tokens' not in sent[-1][2]   # Gemini: no budget
+
+
+def _reply(content, reasoning):
+    from types import SimpleNamespace as NS
+    return NS(choices=[NS(message=NS(content=content, reasoning=reasoning))])
+
+
+def test_command_only_in_reasoning_is_recovered():
+    # PR #12 review: gpt-oss wrote its command only in the reasoning, three times in a row
+    r = _reply('THOUGHT: List the files.', 'We need to run ls.```mswea_bash_command\nls -R\n```')
+    assert agents._recover_action(r)
+    assert r.choices[0].message.content.endswith('```mswea_bash_command\nls -R\n```')
+    two = _reply('THOUGHT', '```mswea_bash_command\nls\n``` or ```mswea_bash_command\npwd\n```')
+    assert not agents._recover_action(two)          # never guess between two commands
+    has = _reply('```mswea_bash_command\nls\n```', '```mswea_bash_command\npwd\n```')
+    assert not agents._recover_action(has) and has.choices[0].message.content.endswith('ls\n```')
