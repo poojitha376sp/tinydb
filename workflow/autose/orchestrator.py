@@ -91,7 +91,7 @@ class Run:
     def agent_ran(self, stage, run):
         """A model or harness error is not a gate failure: stop at once and say why (ADR-009)."""
         status = run.get('exit_status', '')
-        if status.startswith('Error') or status.startswith('TokenCapExceeded'):
+        if status.startswith(('Error', 'TokenCapExceeded', 'QuotaExhausted')):
             self.results['stages'][stage] = {'status': 'error', 'summary': status, 'agent': run}
             raise Stop(stage, f"the agent could not run ({status}): {run.get('error', '')[:400]}")
 

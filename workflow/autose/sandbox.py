@@ -113,19 +113,25 @@ def take_back(path: Path) -> None:
     os.chmod(path, 0o700)
 
 
-def agent_command(argv, extra_env=None):
-    """Wrap ``argv`` so it runs as the agent user with an empty environment."""
+def agent_command(argv, extra_env=None, cwd=None):
+    """Wrap ``argv`` so it runs as the agent user with an empty environment.
+
+    The directory change happens as the agent user (``env -C``): after ``take_back``
+    a sandbox is mode 700, and once it is handed to the agent again the runner user
+    itself can no longer enter it (run 4 crashed there in stage 4a).
+    """
     env = [f'PATH={SAFE_PATH}', 'HOME=/tmp', 'LANG=C.UTF-8', 'PYTHONDONTWRITEBYTECODE=1']
     for k, v in (extra_env or {}).items():
         env.append(f'{k}={v}')
     user = sandbox_user()
     prefix = ['sudo', '-n', '-u', user] if user else []
-    return prefix + ['env', '-i', *env, *argv]
+    chdir = ['-C', str(cwd)] if cwd else []
+    return prefix + ['env', '-i', *chdir, *env, *argv]
 
 
 def run_isolated(argv, cwd: Path, timeout: int, extra_env=None) -> subprocess.CompletedProcess:
     """Run a command as the agent user, in ``cwd``, with a clean environment."""
     return subprocess.run(
-        agent_command(argv, extra_env), cwd=str(cwd), capture_output=True,
+        agent_command(argv, extra_env, cwd=cwd), capture_output=True,
         text=True, timeout=timeout,
     )

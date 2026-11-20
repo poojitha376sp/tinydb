@@ -47,7 +47,7 @@ concurrency:
 
 env:
   PYTHON_VERSION: '3.12'
-  AUTOSE_BUILD_MODELS: ${{ vars.AUTOSE_BUILD_MODELS || 'gemini/gemini-3-flash-preview,gemini/gemini-3.5-flash,gemini/gemini-3.8-flash,gemini/gemini-3.1-flash-lite' }}
+  AUTOSE_BUILD_MODELS: ${{ vars.AUTOSE_BUILD_MODELS || 'gemini/gemini-3.5-flash-lite,gemini/gemini-3.1-flash-lite,gemini/gemini-flash-lite-latest,gemini/gemini-3-flash-preview,gemini/gemini-3.8-flash,gemini/gemini-3.7-flash,gemini/gemma-4-31b-it' }}
   AUTOSE_REVIEW_MODELS: ${{ vars.AUTOSE_REVIEW_MODELS || 'github/openai/gpt-4.1-mini,groq/llama-3.3-70b-versatile' }}
 
 jobs:

@@ -22,11 +22,14 @@ CI_WAIT_SECONDS = 1800           # stage 5: max wait for the dispatched CI run
 # (404 on the first real run, 2026-11-20), so the default moved to gemini-3.8-flash.
 # Run 3 (same day) lost its hour to 503 "high demand" on gemini-3.8-flash, so the build roles
 # now take a fallback chain too; a busy model hands over to the next one (agents.FallbackModel).
-# Order from a one-request probe of the key that day: 3-flash-preview answered in 2s, 3.5-flash
-# in 20s, 3.8-flash and 3.7-flash were 503. All are Gemini, so the Reviewer stays another family.
+# Run 4 showed the free tier allows only 20 requests/day and 5/minute per Flash model, so the
+# chain lists every free Google model on the key; busy ones are skipped and used-up ones dropped.
+# Free limits on the key (AI Studio, 2026-11-20): Flash Lite 15 RPM / 500 RPD, Flash 5 RPM / 20 RPD,
+# Gemma 4 30 RPM but only 16K tokens/min (one agent call is often larger), so Flash Lite leads and
+# Gemma is the last resort. All are Google models, so the Reviewer stays another family.
 BUILD_MODELS = [m.strip() for m in os.environ.get(
     'AUTOSE_BUILD_MODELS',
-    'gemini/gemini-3-flash-preview,gemini/gemini-3.5-flash,gemini/gemini-3.8-flash,gemini/gemini-3.1-flash-lite',
+    'gemini/gemini-3.5-flash-lite,gemini/gemini-3.1-flash-lite,gemini/gemini-flash-lite-latest,gemini/gemini-3-flash-preview,gemini/gemini-3.8-flash,gemini/gemini-3.7-flash,gemini/gemma-4-31b-it',
 ).split(',') if m.strip()]
 BUILD_MODEL = BUILD_MODELS[0]
 GEMINI_THINKING = os.environ.get('AUTOSE_GEMINI_THINKING', 'low')
