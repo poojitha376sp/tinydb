@@ -49,6 +49,9 @@ def test_denied_everywhere(cmd):
     'python3 -c "\nf = open(\'_autose_out/spec.md\', \'w\')\nf.write(\'\'\'Verdict: X\na; b | c\'\'\')\n"',
     "grep -n 'a|b' tinydb/queries.py",
     'echo "a; curl is only text here"',
+    # issue 9: Markdown backticks inside single quotes or escaped are not substitutions
+    "python3 -c 'open(\"_autose_out/spec.md\", \"w\").write(\"after `drop_table`\")'",
+    'python3 -c "print(\\`drop_table\\`)"',
 ])
 def test_quoted_separators_are_not_split(cmd):
     assert guard.check_command(cmd, 'analyst') is None
@@ -102,6 +105,21 @@ def test_spec_good():
 def test_spec_one_line_form():
     g = checks.check_spec('Verdict: PARTIALLY-READY\nFR-001: The system SHALL x.\nAC-FR001-a: call f(1) -> returns 2\n')
     assert g.ok, g.problems
+
+
+def test_spec_empty_list_is_an_expected_result():
+    g = checks.check_spec('Verdict: IMPLEMENTATION-READY\nFR-001: The system SHALL x.\n'
+                          'AC-FR001-a: users.search(q) -> []\n')
+    assert g.ok, g.problems
+
+
+def test_action_keeps_fences_inside_a_heredoc():
+    from minisweagent.models.utils.actions_text import parse_regex_actions
+    from autose import agents
+    resp = ("THOUGHT\n```mswea_bash_command\ncat <<'EOF' > _autose_out/spec.md\nissue:\n```python\n"
+            "x = 1\n```\nend\nEOF\n```\n")
+    acts = parse_regex_actions(resp, action_regex=agents.ACTION_REGEX, format_error_template='x')
+    assert len(acts) == 1 and acts[0]['command'].endswith('end\nEOF')
 
 
 def test_spec_vague_and_missing():
