@@ -97,6 +97,48 @@ def _provider_kwargs(name: str) -> tuple:
     return name, {}
 
 
+def _budget(name: str):
+    """Per-request token budget for models with a small free limit, else None."""
+    return next((v for prefix, v in config.CONTEXT_BUDGET.items() if name.startswith(prefix)), None)
+
+
+def _clip(msg: dict, chars: int) -> dict:
+    text = msg.get('content')
+    if not isinstance(text, str) or len(text) <= chars:
+        return msg
+    half = chars // 2
+    return {**msg, 'content': text[:half] + f'\n[... {len(text) - chars} characters cut to fit the '
+                                            'model limit ...]\n' + text[-half:]}
+
+
+def fit_messages(messages: list, budget_tokens: int) -> list:
+    """Keep the system prompt and the task, then as many of the latest steps as fit.
+
+    Groq's free tier allows 8000 tokens per minute, so one request must stay below that
+    (run 5 review). The trajectory on disk keeps every message; only what is sent shrinks.
+    Characters are counted at 3 per token, which over-estimates for English and code.
+    """
+    limit = budget_tokens * 3
+    head = [_clip(m, limit * 2 // 5) for m in messages[:2]]
+    room = limit - sum(len(m.get('content') or '') for m in head)
+    tail = []
+    for m in reversed(messages[2:]):
+        m = _clip(m, max(min(room, limit // 4), 600))
+        size = len(m.get('content') or '')
+        if size > room:
+            break
+        tail.insert(0, m)
+        room -= size
+    while tail and tail[0].get('role') != 'assistant':
+        tail.pop(0)
+    left_out = len(messages) - len(head) - len(tail)
+    if left_out > 0 and len(head) == 2:
+        head[1] = {**head[1], 'content': head[1]['content'] + (
+            f'\n\n[{left_out} earlier messages are left out to fit the model limit. Files you '
+            'wrote are still on disk.]')}
+    return head + tail
+
+
 def _is_gemini_3(name: str) -> bool:
     """Gemini 3 or newer, including the -latest aliases (not Gemma, not Gemini 1.x/2.x)."""
     return name.startswith('gemini/gemini-') and not re.match(r'gemini/gemini-[12]\b', name)
@@ -156,8 +198,12 @@ class FallbackModel(LitellmTextbasedModel):
                 extra = {'reasoning_effort': config.GEMINI_THINKING, **extra}
             else:
                 extra = {'temperature': 0.2, **extra}
+            send, budget = messages, _budget(name)
+            if budget:
+                send = fit_messages(messages, budget)
+                extra = {'max_tokens': config.BUDGET_MAX_OUTPUT, **extra}
             try:
-                resp = litellm.completion(model=model, messages=messages, timeout=300,
+                resp = litellm.completion(model=model, messages=send, timeout=300,
                                           **(self.config.model_kwargs | extra | kwargs))
             except self.SWITCH as e:
                 if self._switch(type(e).__name__, drop=True):

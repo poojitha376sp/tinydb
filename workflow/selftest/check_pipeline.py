@@ -188,7 +188,7 @@ def test_review_stage(monkeypatch, tmp_path):
 
     def fake_query(self, messages, **kwargs):
         assert 'independent Reviewer, stage 6' in messages[0]['content']
-        assert self.models[0].startswith('github/'), 'reviewer must use the other model family'
+        assert not self.models[0].startswith('gemini/'), 'reviewer must use another model family'
         agents.USAGE[self.role].calls += 1
         return reply(queue.pop(0))
 
@@ -311,3 +311,32 @@ def test_daily_quota_drops_the_model(monkeypatch):
     assert agents.FallbackModel('builder', ['gemini/a', 'gemini/c']).models == ['gemini/c']
     with pytest.raises(agents.QuotaExhausted):
         agents.FallbackModel('builder', ['gemini/b'])._query([])
+
+
+def test_small_models_get_a_fitted_conversation(monkeypatch):
+    """Run 5: Groq allows 8000 tokens/minute. Requests to budgeted models keep the system prompt,
+    the task and the latest steps; long outputs are cut; the agent's own history is untouched."""
+    sent = []
+
+    def fake_completion(model, messages, **kw):
+        sent.append((model, messages, kw))
+        return litellm.ModelResponse(choices=[{'message': {'role': 'assistant', 'content': 'ok'}}])
+
+    monkeypatch.setattr(litellm, 'completion', fake_completion)
+    history = [{'role': 'system', 'content': 'S' * 3500}, {'role': 'user', 'content': 'T' * 2300}]
+    for i in range(30):
+        history += [{'role': 'assistant', 'content': f'step {i} ' + 'a' * 300},
+                    {'role': 'user', 'content': f'output {i} ' + 'o' * 9000}]
+    before = [dict(m) for m in history]
+
+    agents.FallbackModel('reviewer', ['groq/openai/gpt-oss-120b'])._query(history)
+    model, msgs, kw = sent[-1]
+    assert history == before, 'the trajectory must keep every message'
+    assert sum(len(m['content']) for m in msgs) <= 5000 * 3
+    assert msgs[0]['content'] == 'S' * 3500 and msgs[1]['content'].startswith('T' * 2300)
+    assert 'left out to fit the model limit' in msgs[1]['content']
+    assert msgs[2]['role'] == 'assistant' and 'output 29' in msgs[-1]['content']
+    assert kw['max_tokens'] == 2500
+
+    agents.FallbackModel('builder', ['gemini/gemini-3.5-flash-lite'])._query(history)
+    assert sent[-1][1] is history and 'max_tokens' not in sent[-1][2]   # Gemini: no budget
