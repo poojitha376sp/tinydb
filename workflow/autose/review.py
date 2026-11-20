@@ -1,7 +1,7 @@
 """Stage 6, part 1: the independent Reviewer (ADR-008).
 
-Runs in its own job whose token can only read the repository and call
-GitHub Models. It sees the issue, the diff and a checkout of the PR head
+Runs in its own job whose token can only read the repository; the model
+is on Groq (not a Google model, unlike the build roles). It sees the issue, the diff and a checkout of the PR head
 (plus ARCHITECTURE.md); never spec.md, design.md, test reports or any
 transcript. Its JSON verdict is then checked by plain code:
 

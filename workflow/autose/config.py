@@ -12,7 +12,7 @@ STEP_LIMITS = {
     'analyst': int(os.environ.get('AUTOSE_STEPS_ANALYST', 25)),
     'test_author': int(os.environ.get('AUTOSE_STEPS_TEST_AUTHOR', 25)),
     'builder': int(os.environ.get('AUTOSE_STEPS_BUILDER', 35)),
-    'reviewer': int(os.environ.get('AUTOSE_STEPS_REVIEWER', 30)),
+    'reviewer': int(os.environ.get('AUTOSE_STEPS_REVIEWER', 20)),   # 8000 tokens/min on Groq
 }
 RUN_TOKEN_CAP = int(os.environ.get('AUTOSE_TOKEN_CAP', 3_000_000))
 COMMAND_TIMEOUT = 120            # seconds per shell command an agent runs
@@ -33,10 +33,16 @@ BUILD_MODELS = [m.strip() for m in os.environ.get(
 ).split(',') if m.strip()]
 BUILD_MODEL = BUILD_MODELS[0]
 GEMINI_THINKING = os.environ.get('AUTOSE_GEMINI_THINKING', 'low')
+# Run 5: GitHub Models answered every request with a bare "OK" (HTTP 200) on this account, and
+# Groq had retired llama-3.3-70b. A probe found gpt-oss-120b and qwen3.8-27b on Groq, both with
+# 1000 requests/day but 8000 tokens/minute; neither is a Google model (ADR-008 independence).
 REVIEW_MODELS = [m.strip() for m in os.environ.get(
     'AUTOSE_REVIEW_MODELS',
-    'github/openai/gpt-4.1-mini,groq/llama-3.3-70b-versatile',
+    'groq/openai/gpt-oss-120b,groq/qwen/qwen3.8-27b',
 ).split(',') if m.strip()]
+# Per-request input budget (tokens) for models with small free limits; see agents.fit_messages.
+CONTEXT_BUDGET = {'groq/': int(os.environ.get('AUTOSE_GROQ_BUDGET', 5000))}
+BUDGET_MAX_OUTPUT = 2500
 
 # ADR-010: trigger label and labels the workflow sets
 TRIGGER_LABEL = 'autose'
