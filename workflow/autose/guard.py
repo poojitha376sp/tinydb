@@ -44,6 +44,40 @@ DENY_PATTERNS = [
     r'\bsubprocess\b', r'\bos\.system\b', r'\bos\.environ\b', r'\bgetenv\b',
 ]
 
+# Bash expands ~ only outside quotes, so this pattern is checked on the unquoted text only.
+# (Issue 10: "~tinydb.storages" inside a python3 -c "..." docstring edit was blocked, and the
+# Builder then removed the ~ from four docstrings to get past the guard.)
+UNQUOTED_ONLY = {r'(^|\s)~'}
+
+
+def _unquoted(cmd: str) -> str:
+    """The command with everything inside '...' or "..." replaced by spaces."""
+    out, quote, i = [], None, 0
+    while i < len(cmd):
+        c = cmd[i]
+        if quote:
+            if c == '\\' and quote == '"' and i + 1 < len(cmd):
+                out.append('  ')
+                i += 2
+                continue
+            if c == quote:
+                quote = None
+                out.append(c)
+            else:
+                out.append('\n' if c == '\n' else ' ')
+        elif c == '\\' and i + 1 < len(cmd):
+            out.append(cmd[i:i + 2])                 # escaped quote outside quotes stays literal
+            i += 2
+            continue
+        elif c in '\'"':
+            quote = c
+            out.append(c)
+        else:
+            out.append(c)
+        i += 1
+    return ''.join(out)
+
+
 _HEREDOC = re.compile(r"<<-?\s*(['\"]?)(\w+)\1")
 
 
@@ -136,14 +170,19 @@ def _substitutions(cmd: str):
 def check_command(cmd: str, role: str):
     """Return None if allowed, else a short reason string shown to the agent."""
     visible = strip_heredocs(cmd)
+    bare = _unquoted(visible)
     for pat in DENY_PATTERNS:
-        if re.search(pat, visible):
+        if re.search(pat, bare if pat in UNQUOTED_ONLY else visible):
             return f'blocked: pattern {pat!r} is not allowed for any agent'
     # $(...) and `...` run even inside double quotes: check what they would run
     for inner in _substitutions(visible):
         reason = check_command(inner, role) if inner.strip() else None
         if reason:
-            return reason
+            # Issue 10: Sphinx markup like :meth:`~tinydb.x` inside python3 -c "..." is run by
+            # bash as a command, so say how to write such text instead of only what was blocked.
+            return (f'{reason}. Note: bash runs `...` and $(...) even inside double quotes, so '
+                    f'`{inner.strip()[:40]}` would be run as a command. To write code or text that '
+                    "contains backticks, use a heredoc with a quoted delimiter: cat > FILE <<'EOF'")
     for seg in _segments(visible):
         seg = seg.lstrip('({ ').rstrip(')} ')
         if not seg:
