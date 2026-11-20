@@ -328,6 +328,26 @@ class Query(QueryInstance):
             lambda value: value >= rhs,
             ('>=', self._path, rhs)
         )
+    def between(self, start: Any, end: Any) -> QueryInstance:
+        """
+        Test a dict value for being between two values.
+
+        >>> Query().f1.between(18, 30)
+
+        :param start: The start value
+        :param end: The end value
+        """
+        def test(value):
+            try:
+                return start <= value <= end
+            except TypeError:
+                return False
+
+        return self._generate_test(
+            test,
+            ('between', self._path, start, end)
+        )
+
 
     def exists(self) -> QueryInstance:
         """
