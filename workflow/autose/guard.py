@@ -63,7 +63,42 @@ def strip_heredocs(cmd: str) -> str:
 
 
 def _segments(cmd: str):
-    return [s.strip() for s in re.split(r'&&|\|\||;|\||\n', cmd) if s.strip()]
+    """Split a command line on && || ; | and newlines that are outside quotes.
+
+    Run 4: a multi-line ``python3 -c "..."`` was split at its inner newlines and every
+    Python line was then checked as if it were a program name.
+    """
+    segs, cur, quote, i = [], [], None, 0
+    while i < len(cmd):
+        c = cmd[i]
+        if quote:
+            if c == '\\' and quote == '"' and i + 1 < len(cmd):
+                cur.append(cmd[i:i + 2])
+                i += 2
+                continue
+            if c == quote:
+                quote = None
+            cur.append(c)
+        elif c in '\'"':
+            quote = c
+            cur.append(c)
+        elif c == '\\' and i + 1 < len(cmd):
+            cur.append(cmd[i:i + 2])
+            i += 2
+            continue
+        elif cmd.startswith('&&', i) or cmd.startswith('||', i):
+            segs.append(''.join(cur))
+            cur = []
+            i += 2
+            continue
+        elif c in ';|\n':
+            segs.append(''.join(cur))
+            cur = []
+        else:
+            cur.append(c)
+        i += 1
+    segs.append(''.join(cur))
+    return [s.strip() for s in segs if s.strip()]
 
 
 def check_command(cmd: str, role: str):
@@ -72,6 +107,11 @@ def check_command(cmd: str, role: str):
     for pat in DENY_PATTERNS:
         if re.search(pat, visible):
             return f'blocked: pattern {pat!r} is not allowed for any agent'
+    # $(...) and `...` run even inside double quotes: check what they would run
+    for inner in re.findall(r'\$\(([^()]*)\)', visible) + re.findall(r'`([^`]*)`', visible):
+        reason = check_command(inner, role) if inner.strip() else None
+        if reason:
+            return reason
     for seg in _segments(visible):
         seg = seg.lstrip('({ ').rstrip(')} ')
         if not seg:
