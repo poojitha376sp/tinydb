@@ -36,6 +36,8 @@ def test_analyst_allowed(cmd):
     'FOO=1 python x.py',
     'cat ../../secrets',
     'ls ~/.ssh',
+    'cat ~/.bashrc "quoted ~ is fine"',
+    'ls \\"x\\" ~/',
     'sudo ls',
     'bash -c "ls"',
     'cat x | sh',
@@ -52,6 +54,9 @@ def test_denied_everywhere(cmd):
     # issue 9: Markdown backticks inside single quotes or escaped are not substitutions
     "python3 -c 'open(\"_autose_out/spec.md\", \"w\").write(\"after `drop_table`\")'",
     'python3 -c "print(\\`drop_table\\`)"',
+    # issue 10: a ~ inside quotes is Sphinx markup, not the home folder
+    "python3 -c 's = \":class:`~tinydb.storages.JSONStorage`\"'",
+    "grep -n ':meth:`~tinydb' tinydb/database.py",
 ])
 def test_quoted_separators_are_not_split(cmd):
     assert guard.check_command(cmd, 'analyst') is None
@@ -211,3 +216,17 @@ def test_missing_ac_name_is_rejected(tmp_path):
     (tree / 'tests/test_autose_issue9.py').write_text(RED_TESTS)
     red = checks.check_red(tree, 'tests/test_autose_issue9.py', ['AC-FR001-a', 'AC-FR001-b'])
     assert not red.ok and any('ac_fr001_b' in p for p in red.problems)
+
+
+def test_shared_memory_file_is_rejected(tmp_path):
+    tree = sandbox.make_tree(REPO, tmp_path / 'm')
+    (tree / 'tests/test_autose_issue10.py').write_text(
+        RED_TESTS.replace('TinyDB(storage=MemoryStorage)', "TinyDB(':memory:')"))
+    red = checks.check_red(tree, 'tests/test_autose_issue10.py', ['AC-FR001-a'])
+    assert not red.ok and any(':memory:' in p for p in red.problems)
+
+
+def test_backticks_in_double_quotes_get_a_useful_reason():
+    # issue 10: bash would run `~tinydb.database.TinyDB.close` and corrupt the file
+    reason = guard.check_command('python3 -c "doc = \':meth:`~tinydb.database.TinyDB.close`\'"', 'builder')
+    assert reason and "<<'EOF'" in reason

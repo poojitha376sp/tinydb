@@ -212,6 +212,11 @@ def check_red(base_with_tests: Path, test_file: str, acs) -> Gate:
     for ac in acs:
         if not any(ac_test_token(ac) in n for n in names):
             problems.append(f'no test function name contains "{ac_test_token(ac)}" for {ac}')
+    if re.search(r'''TinyDB\(\s*['"]:memory:['"]''', src.read_text()):
+        # Issue 10: TinyDB(':memory:') is a real JSON file named ":memory:" that every test
+        # shares, so one test's leftover table made a correct fix fail three times.
+        problems.append("TinyDB(':memory:') writes a real file named :memory: that all tests share; "
+                        'use TinyDB(storage=MemoryStorage) or a file under tmp_path')
 
     res = run_pytest(base_with_tests, [test_file])
     mine = _tests_for(res, test_file)
