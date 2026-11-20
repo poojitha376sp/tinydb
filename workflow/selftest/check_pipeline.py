@@ -257,3 +257,34 @@ def test_model_unavailable_stops_at_once(scripted, tmp_path, monkeypatch):
     assert res['stopped']['stage'] == '1-requirements'
     assert 'could not run' in res['stopped']['reason'] and 'no longer available' in res['stopped']['reason']
     assert len(calls) == 1, 'a missing model must not be retried'
+
+
+def test_busy_model_hands_over(monkeypatch):
+    """Run 3: gemini kept answering 503. After two busy answers in a row the next model is used,
+    a dead model (404) is dropped from the chain, and Gemini 3 gets a low thinking level."""
+    seen = []
+
+    def fake_completion(model, messages, **kw):
+        seen.append((model, kw.get('reasoning_effort'), kw.get('temperature')))
+        if model == 'gemini/gemini-3-busy':
+            raise litellm.exceptions.ServiceUnavailableError(message='high demand', model=model,
+                                                             llm_provider='gemini')
+        if model == 'gemini/gone':
+            raise litellm.exceptions.NotFoundError(message='gone', model=model, llm_provider='gemini')
+        return litellm.ModelResponse(choices=[{'message': {'role': 'assistant', 'content': 'ok'}}])
+
+    monkeypatch.setattr(litellm, 'completion', fake_completion)
+    m = agents.FallbackModel('analyst', ['gemini/gemini-3-busy', 'gemini/gone', 'gemini/other'])
+    with pytest.raises(litellm.exceptions.ServiceUnavailableError):
+        m._query([])                              # 1st busy answer: let the backoff wait once
+    m._query([])                                  # 2nd busy: switch; 404 drops 'gone'; 'other' answers
+    assert m.models == ['gemini/gemini-3-busy', 'gemini/other']
+    assert m.used_models == ['gemini/other']
+    assert [s[2] for s in m.switches] == ['ServiceUnavailableError', 'NotFoundError']
+    assert seen[0][1] == 'low' and seen[0][2] is None       # gemini 3: low thinking, default temperature
+    assert seen[-1][1] is None and seen[-1][2] == 0.2
+
+    one = agents.FallbackModel('analyst', ['gemini/gemini-3-busy'])
+    for _ in range(3):                            # a chain of one never loops; backoff handles it
+        with pytest.raises(litellm.exceptions.ServiceUnavailableError):
+            one._query([])
