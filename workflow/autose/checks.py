@@ -90,7 +90,7 @@ def check_spec(text: str) -> Gate:
         for vague in VAGUE_WORDS:
             if re.search(rf'\b{re.escape(vague)}\b', joined):
                 problems.append(f'{ac} uses the untestable word "{vague}"')
-        if len(expected.strip()) < 3:
+        if not expected.strip():   # "[]", "0" and "None" are fine (issue 9 was stopped on "-> []")
             problems.append(f'{ac} has no observable expected result after "->"')
     for fr in frs:
         if not any(ac[3:8] == fr.replace('-', '') for ac in acs):

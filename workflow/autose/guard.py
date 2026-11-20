@@ -101,6 +101,38 @@ def _segments(cmd: str):
     return [s.strip() for s in segs if s.strip()]
 
 
+def _substitutions(cmd: str):
+    """Bodies of $(...) and `...` that bash would really run: not inside single quotes and
+    not escaped. (Issue 9: Markdown backticks inside python3 -c '...' were wrongly blocked.)"""
+    out, quote, i = [], None, 0
+    while i < len(cmd):
+        c = cmd[i]
+        if quote == "'":
+            if c == "'":
+                quote = None
+        elif c == '\\':
+            i += 1                                   # escaped character, never a substitution
+        elif c == "'" and quote is None:
+            quote = "'"
+        elif c == '"':
+            quote = None if quote == '"' else '"'
+        elif c == '`':
+            j = i + 1
+            while j < len(cmd) and cmd[j] != '`':
+                j += 2 if cmd[j] == '\\' else 1
+            out.append(cmd[i + 1:j])
+            i = j
+        elif cmd.startswith('$(', i):
+            depth, j = 1, i + 2
+            while j < len(cmd) and depth:
+                depth += {'(': 1, ')': -1}.get(cmd[j], 0)
+                j += 1
+            out.append(cmd[i + 2:j - 1])
+            i = j - 1
+        i += 1
+    return out
+
+
 def check_command(cmd: str, role: str):
     """Return None if allowed, else a short reason string shown to the agent."""
     visible = strip_heredocs(cmd)
@@ -108,7 +140,7 @@ def check_command(cmd: str, role: str):
         if re.search(pat, visible):
             return f'blocked: pattern {pat!r} is not allowed for any agent'
     # $(...) and `...` run even inside double quotes: check what they would run
-    for inner in re.findall(r'\$\(([^()]*)\)', visible) + re.findall(r'`([^`]*)`', visible):
+    for inner in _substitutions(visible):
         reason = check_command(inner, role) if inner.strip() else None
         if reason:
             return reason

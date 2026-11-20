@@ -34,6 +34,10 @@ OBSERVATION = (
     "<output_tail>\n{{ output.output[-4000:] }}\n</output_tail>{%- endif -%}"
 )
 
+# Up to the LAST closing fence, which may not be followed by a language name: a heredoc that
+# copies the issue's ```python block no longer cuts the command short (runs 4 and 5, issue 9).
+ACTION_REGEX = r"```mswea_bash_command\s*\n(.*)\n```(?![\w`])"
+
 SYSTEM_COMMON = """You are one agent in an automated software engineering workflow working on the
 TinyDB Python project. You can only act by running shell commands.
 
@@ -165,6 +169,7 @@ class FallbackModel(LitellmTextbasedModel):
 
     def __init__(self, role: str, models: list):
         super().__init__(model_name=models[0], observation_template=OBSERVATION,
+                         action_regex=ACTION_REGEX,
                          model_kwargs={'drop_params': True},
                          cost_tracking='ignore_errors')
         live = [m for m in models if m not in EXHAUSTED] or list(models)
