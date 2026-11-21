@@ -837,3 +837,17 @@ def test_lambda_query():
     query.is_cacheable = lambda: False
     assert db.search(query) == [{'foo': 'bar'}]
     assert not db._query_cache
+
+
+def test_update_multiple_accepts_generator(db: TinyDB):
+    updates = (({'int': 7}, where('char') == c) for c in ['a', 'b'])
+    db.update_multiple(updates)
+    assert db.count(where('int') == 7) == 2
+
+
+def test_update_multiple_returns_unique_ids(db: TinyDB):
+    ids = db.update_multiple([
+        ({'x': 1}, where('char') == 'a'),
+        ({'y': 1}, where('char') == 'a'),
+    ])
+    assert ids == [1]

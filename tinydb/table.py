@@ -551,6 +551,11 @@ class Table:
                 # data
                 table[doc_id].update(fields)
 
+        # Materialize the updates once: they are applied to every document,
+        # so a one-shot iterator (e.g. a generator) would otherwise be
+        # exhausted after the first document.
+        updates = list(updates)
+
         # Perform the update operation for documents specified by a query
 
         # Collect affected doc_ids
@@ -569,8 +574,10 @@ class Table:
                     # Pass through all documents to find documents matching the
                     # query. Call the processing callback with the document ID
                     if _cond(table[doc_id]):
-                        # Add ID to list of updated documents
-                        updated_ids.append(doc_id)
+                        # Add ID to list of updated documents (once, even if
+                        # several updates match this document)
+                        if doc_id not in updated_ids:
+                            updated_ids.append(doc_id)
 
                         # Perform the update (see above)
                         perform_update(fields, table, doc_id)
