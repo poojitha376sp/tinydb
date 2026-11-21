@@ -28,7 +28,8 @@ issue labelled "autose"
   -> 4a Tests        Test Author writes acceptance tests   check: every new test FAILS on the base code
   -> 3 Implement     Builder changes tinydb/*.py           check: compiles, imports, mypy, stays in plan
   -> 4b Testing      plain code runs the whole suite       check: new tests pass, no old test breaks
-                     (fail -> back to 3, at most 3 tries; same failure twice -> back to 2, once)
+                     (fail -> back to 3, at most 3 tries; same failure twice -> the Test Author
+                      may fix a wrong test once, seeing only the error messages; then back to 2, once)
   -> 5 Release       plain code pushes autose/issue-N, opens the PR, runs the project CI
   -> 6 Review        Reviewer agent (different model family, sees no Builder reasoning)
                      APPROVE -> label ready-for-human
