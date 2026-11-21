@@ -201,6 +201,32 @@ class TinyDB(TableBase):
         # Store the updated data back to the storage
         self.storage.write(data)
 
+    def rename_table(self, old_name: str, new_name: str) -> None:
+        """
+        Rename a table in the database.
+
+        :param old_name: The current name of the table.
+        :param new_name: The new name of the table.
+        """
+        data = self.storage.read()
+
+        if data is None or old_name not in data:
+            raise ValueError(f"Table {old_name} does not exist")
+
+        if new_name in data:
+            raise ValueError(f"Table {new_name} already exists")
+
+        data[new_name] = data.pop(old_name)
+        self.storage.write(data)
+
+        if new_name in self._tables:
+            del self._tables[new_name]
+
+        if old_name in self._tables:
+            table = self._tables.pop(old_name)
+            table._name = new_name
+            self._tables[new_name] = table
+
     @property
     def storage(self) -> Storage:
         """
