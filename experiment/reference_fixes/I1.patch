@@ -1,0 +1,12 @@
+diff -ru '--exclude=__pycache__' tdb/tinydb/queries.py ref/I1/tinydb/queries.py
+--- a/tinydb/queries.py	2026-11-19 18:13:29.274861957 +0000
++++ b/tinydb/queries.py	2026-11-19 18:16:07.586742248 +0000
+@@ -496,7 +496,7 @@
+ 
+         return self._generate_test(
+             lambda value: test(value),
+-            ('fragment', freeze(document)),
++            ('fragment', self._path, freeze(document)),
+             allow_empty_path=True
+         )
+ 

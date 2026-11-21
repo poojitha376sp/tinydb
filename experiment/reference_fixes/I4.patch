@@ -1,0 +1,24 @@
+diff -ru '--exclude=__pycache__' tdb/tinydb/queries.py ref/I4/tinydb/queries.py
+--- a/tinydb/queries.py	2026-11-19 18:13:29.274861957 +0000
++++ b/tinydb/queries.py	2026-11-19 18:16:07.586742248 +0000
+@@ -329,6 +329,20 @@
+             ('>=', self._path, rhs)
+         )
+ 
++    def between(self, low: Any, high: Any) -> QueryInstance:
++        """
++        Test for a value between ``low`` and ``high`` (both inclusive).
++
++        >>> Query().f1.between(18, 30)
++        """
++        def test(value):
++            try:
++                return low <= value <= high
++            except TypeError:
++                return False
++
++        return self._generate_test(test, ('between', self._path, low, high))
++
+     def exists(self) -> QueryInstance:
+         """
+         Test for a dict where a provided key exists.

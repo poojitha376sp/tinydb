@@ -1,0 +1,36 @@
+diff -ru '--exclude=__pycache__' tdb/tinydb/storages.py ref/I5/tinydb/storages.py
+--- a/tinydb/storages.py	2026-11-19 18:13:29.274861957 +0000
++++ b/tinydb/storages.py	2026-11-19 18:16:07.586742248 +0000
+@@ -3,6 +3,7 @@
+ implementations.
+ """
+ 
++import datetime
+ import io
+ import json
+ import os
+@@ -33,6 +34,13 @@
+         pass
+ 
+ 
++def _json_default(obj):
++    """Serialize dates and datetimes as ISO-8601 strings."""
++    if isinstance(obj, (datetime.date, datetime.datetime)):
++        return obj.isoformat()
++    raise TypeError(f'Object of type {type(obj).__name__} is not JSON serializable')
++
++
+ class Storage(ABC):
+     """
+     The abstract base class for all Storages.
+@@ -144,7 +152,9 @@
+         self._handle.seek(0)
+ 
+         # Serialize the database state using the user-provided arguments
+-        serialized = json.dumps(data, **self.kwargs)
++        kwargs = dict(self.kwargs)
++        kwargs.setdefault('default', _json_default)
++        serialized = json.dumps(data, **kwargs)
+ 
+         # Write the serialized data to the file
+         try:

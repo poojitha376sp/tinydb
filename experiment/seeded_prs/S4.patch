@@ -1,0 +1,45 @@
+diff -ru '--exclude=__pycache__' tdb/tinydb/table.py seed/S4/tinydb/table.py
+--- a/tinydb/table.py	2026-11-19 18:13:29.278861752 +0000
++++ b/tinydb/table.py	2026-11-19 18:36:12.836391296 +0000
+@@ -3,6 +3,7 @@
+ data in TinyDB.
+ """
+ 
++import copy
+ from collections.abc import Callable, Iterable, Iterator, Mapping, MutableMapping
+ from typing import (
+     NoReturn,
+@@ -444,6 +445,16 @@
+         :returns: a list containing the updated document's ID
+         """
+ 
++        # Take a snapshot of the whole database so a failing update can be
++        # rolled back and no document is left half-updated.
++        snapshot = copy.deepcopy(self._storage.read())
++        try:
++            return self._update(fields, cond, doc_ids)
++        except Exception:
++            self._storage.write(snapshot)
++            raise
++
++    def _update(self, fields, cond, doc_ids):
+         # Define the function that will perform the update
+         if callable(fields):
+             def perform_update(table, doc_id):
+diff -ru '--exclude=__pycache__' tdb/tests/test_tinydb.py seed/S4/tests/test_tinydb.py
+--- a/tests/test_tinydb.py	2026-11-19 18:13:29.286861342 +0000
++++ b/tests/test_tinydb.py	2026-11-19 18:36:12.836391296 +0000
+@@ -837,3 +837,13 @@
+     query.is_cacheable = lambda: False
+     assert db.search(query) == [{'foo': 'bar'}]
+     assert not db._query_cache
++
++
++def test_failed_update_leaves_documents_unchanged():
++    from tinydb.operations import delete
++    db = TinyDB(storage=MemoryStorage)
++    db.insert({'x': 1, 'k': 1})
++    db.insert({'k': 1})
++    with pytest.raises(KeyError):
++        db.update(delete('x'))
++    assert db.all() == [{'x': 1, 'k': 1}, {'k': 1}]

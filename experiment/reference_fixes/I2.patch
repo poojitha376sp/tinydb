@@ -1,0 +1,27 @@
+diff -ru '--exclude=__pycache__' tdb/tinydb/database.py ref/I2/tinydb/database.py
+--- a/tinydb/database.py	2026-11-19 18:13:29.274861957 +0000
++++ b/tinydb/database.py	2026-11-19 18:16:07.586742248 +0000
+@@ -169,6 +169,12 @@
+         # to the storage thereby returning to the initial state with no tables.
+         self.storage.write({})
+ 
++        # Forget cached query results and ID counters of open table objects
++        # that callers may still hold a reference to.
++        for table in self._tables.values():
++            table.clear_cache()
++            table._next_id = None
++
+         # After that we need to remember to empty the ``_tables`` dict, so we'll
+         # create new table instances when a table is accessed again.
+         self._tables.clear()
+@@ -183,7 +189,9 @@
+         # If the table is currently opened, we need to forget the table class
+         # instance
+         if name in self._tables:
+-            del self._tables[name]
++            dropped = self._tables.pop(name)
++            dropped.clear_cache()
++            dropped._next_id = None
+ 
+         data = self.storage.read()
+ 
