@@ -1,0 +1,49 @@
+diff -ru '--exclude=__pycache__' tdb/tinydb/table.py seed/S1/tinydb/table.py
+--- a/tinydb/table.py	2026-11-19 18:13:29.278861752 +0000
++++ b/tinydb/table.py	2026-11-19 18:36:12.832391443 +0000
+@@ -551,6 +551,11 @@
+                 # data
+                 table[doc_id].update(fields)
+ 
++        # Materialize the updates once: they are applied to every document,
++        # so a one-shot iterator (e.g. a generator) would otherwise be
++        # exhausted after the first document.
++        updates = list(updates)
++
+         # Perform the update operation for documents specified by a query
+ 
+         # Collect affected doc_ids
+@@ -569,8 +574,10 @@
+                     # Pass through all documents to find documents matching the
+                     # query. Call the processing callback with the document ID
+                     if _cond(table[doc_id]):
+-                        # Add ID to list of updated documents
+-                        updated_ids.append(doc_id)
++                        # Add ID to list of updated documents (once, even if
++                        # several updates match this document)
++                        if doc_id not in updated_ids:
++                            updated_ids.append(doc_id)
+ 
+                         # Perform the update (see above)
+                         perform_update(fields, table, doc_id)
+diff -ru '--exclude=__pycache__' tdb/tests/test_tinydb.py seed/S1/tests/test_tinydb.py
+--- a/tests/test_tinydb.py	2026-11-19 18:13:29.286861342 +0000
++++ b/tests/test_tinydb.py	2026-11-19 18:36:12.832391443 +0000
+@@ -837,3 +837,17 @@
+     query.is_cacheable = lambda: False
+     assert db.search(query) == [{'foo': 'bar'}]
+     assert not db._query_cache
++
++
++def test_update_multiple_accepts_generator(db: TinyDB):
++    updates = (({'int': 7}, where('char') == c) for c in ['a', 'b'])
++    db.update_multiple(updates)
++    assert db.count(where('int') == 7) == 2
++
++
++def test_update_multiple_returns_unique_ids(db: TinyDB):
++    ids = db.update_multiple([
++        ({'x': 1}, where('char') == 'a'),
++        ({'y': 1}, where('char') == 'a'),
++    ])
++    assert ids == [1]

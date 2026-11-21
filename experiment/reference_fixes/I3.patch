@@ -1,0 +1,30 @@
+diff -ru '--exclude=__pycache__' tdb/tinydb/database.py ref/I3/tinydb/database.py
+--- a/tinydb/database.py	2026-11-19 18:13:29.274861957 +0000
++++ b/tinydb/database.py	2026-11-19 18:16:07.586742248 +0000
+@@ -201,6 +201,26 @@
+         # Store the updated data back to the storage
+         self.storage.write(data)
+ 
++    def rename_table(self, old: str, new: str) -> None:
++        """
++        Rename a table, keeping its documents and document IDs.
++
++        :raises ValueError: if ``old`` does not exist or ``new`` already exists
++        """
++        data = self.storage.read() or {}
++
++        if old not in data:
++            raise ValueError(f'Table {old!r} does not exist')
++        if new in data:
++            raise ValueError(f'Table {new!r} already exists')
++
++        data[new] = data.pop(old)
++        self.storage.write(data)
++
++        # Forget open table objects for both names
++        self._tables.pop(old, None)
++        self._tables.pop(new, None)
++
+     @property
+     def storage(self) -> Storage:
+         """

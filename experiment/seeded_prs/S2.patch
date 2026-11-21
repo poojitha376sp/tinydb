@@ -1,0 +1,28 @@
+diff -ru '--exclude=__pycache__' tdb/tinydb/queries.py seed/S2/tinydb/queries.py
+--- a/tinydb/queries.py	2026-11-19 18:13:29.274861957 +0000
++++ b/tinydb/queries.py	2026-11-19 18:36:12.832391443 +0000
+@@ -481,6 +481,10 @@
+ 
+         :param items: The list of items to check with
+         """
++        # Materialize the items once so generators can be used, and use a
++        # set for fast membership checks on large lists.
++        items = set(items)
++
+         return self._generate_test(
+             lambda value: value in items,
+             ('one_of', self._path, freeze(items))
+diff -ru '--exclude=__pycache__' tdb/tests/test_queries.py seed/S2/tests/test_queries.py
+--- a/tests/test_queries.py	2026-11-19 18:13:29.282861547 +0000
++++ b/tests/test_queries.py	2026-11-19 18:36:12.832391443 +0000
+@@ -527,3 +527,10 @@
+ 
+     assert query({'test': 1})
+     assert not query({'test': 0})
++
++
++def test_one_of_generator():
++    query = Query().key1.one_of(v for v in ['value 1', 'value 2'])
++    assert query({'key1': 'value 2'})
++    assert query({'key1': 'value 1'})
++    assert not query({'key1': 'value 3'})

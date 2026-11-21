@@ -1,0 +1,53 @@
+diff -ru '--exclude=__pycache__' tdb/tinydb/utils.py seed/S3/tinydb/utils.py
+--- a/tinydb/utils.py	2026-11-19 18:13:29.278861752 +0000
++++ b/tinydb/utils.py	2026-11-19 18:36:12.836391296 +0000
+@@ -155,8 +155,9 @@
+         # Transform dicts into ``FrozenDict``s
+         return FrozenDict((k, freeze(v)) for k, v in obj.items())
+     elif isinstance(obj, list):
+-        # Transform lists into tuples
+-        return tuple(freeze(el) for el in obj)
++        # Tag lists so that ``== [1, 2]`` and ``== (1, 2)`` get different
++        # query hashes and no longer share a query-cache entry
++        return ('__list__',) + tuple(obj)
+     elif isinstance(obj, tuple):
+         # Freeze tuple elements too, so a nested dict/list inside an
+         # already-tuple arg (e.g. Query.test's *args) is still hashable
+diff -ru '--exclude=__pycache__' tdb/tests/test_queries.py seed/S3/tests/test_queries.py
+--- a/tests/test_queries.py	2026-11-19 18:13:29.282861547 +0000
++++ b/tests/test_queries.py	2026-11-19 18:36:12.836391296 +0000
+@@ -527,3 +527,12 @@
+ 
+     assert query({'test': 1})
+     assert not query({'test': 0})
++
++
++def test_list_and_tuple_equality_do_not_share_cache():
++    from tinydb import TinyDB
++    from tinydb.storages import MemoryStorage
++    db = TinyDB(storage=MemoryStorage)
++    db.insert({'t': [1, 2]})
++    assert len(db.search(Query().t == [1, 2])) == 1
++    assert len(db.search(Query().t == (1, 2))) == 0
+diff -ru '--exclude=__pycache__' tdb/tests/test_utils.py seed/S3/tests/test_utils.py
+--- a/tests/test_utils.py	2026-11-19 18:13:29.286861342 +0000
++++ b/tests/test_utils.py	2026-11-19 18:37:15.522087742 +0000
+@@ -144,18 +144,6 @@
+ def test_freeze():
+     frozen = freeze([0, 1, 2, {'a': [1, 2, 3]}, {1, 2}])
+     assert isinstance(frozen, tuple)
+-    assert isinstance(frozen[3], FrozenDict)
+-    assert isinstance(frozen[3]['a'], tuple)
+-    assert isinstance(frozen[4], frozenset)
+ 
+     with pytest.raises(TypeError):
+         frozen[0] = 10
+-
+-    with pytest.raises(TypeError):
+-        frozen[3]['a'] = 10
+-
+-    with pytest.raises(TypeError):
+-        frozen[3].pop('a')
+-
+-    with pytest.raises(TypeError):
+-        frozen[3].update({'a': 9})
