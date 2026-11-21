@@ -155,8 +155,9 @@ def freeze(obj):
         # Transform dicts into ``FrozenDict``s
         return FrozenDict((k, freeze(v)) for k, v in obj.items())
     elif isinstance(obj, list):
-        # Transform lists into tuples
-        return tuple(freeze(el) for el in obj)
+        # Tag lists so that ``== [1, 2]`` and ``== (1, 2)`` get different
+        # query hashes and no longer share a query-cache entry
+        return ('__list__',) + tuple(obj)
     elif isinstance(obj, tuple):
         # Freeze tuple elements too, so a nested dict/list inside an
         # already-tuple arg (e.g. Query.test's *args) is still hashable
