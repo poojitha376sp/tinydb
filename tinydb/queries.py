@@ -481,6 +481,10 @@ class Query(QueryInstance):
 
         :param items: The list of items to check with
         """
+        # Materialize the items once so generators can be used, and use a
+        # set for fast membership checks on large lists.
+        items = set(items)
+
         return self._generate_test(
             lambda value: value in items,
             ('one_of', self._path, freeze(items))

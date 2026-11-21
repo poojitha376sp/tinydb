@@ -527,3 +527,10 @@ def test_get_item():
 
     assert query({'test': 1})
     assert not query({'test': 0})
+
+
+def test_one_of_generator():
+    query = Query().key1.one_of(v for v in ['value 1', 'value 2'])
+    assert query({'key1': 'value 2'})
+    assert query({'key1': 'value 1'})
+    assert not query({'key1': 'value 3'})
