@@ -17,7 +17,7 @@ The original TinyDB readme is in [README.rst](README.rst).
 | Experiments | [experiment/](experiment/) |
 | Results | [results/results.csv](results/results.csv), [results/runs.md](results/runs.md) |
 | Report | [report.pdf](report.pdf) |
-| Demo video | (link added after the final run) |
+| Demo video | [Watch the demo (Google Drive, about 4 minutes)](https://drive.google.com/file/d/1W9TZQVijDGkurqi6QP0CCZ8gltquDP1g/view?usp=sharing) |
 
 ## How it works
 
@@ -43,7 +43,7 @@ uploads its artifacts (spec, design, tests, diff, test report, trajectories,
 `stage_results.json`) to the Actions run, and the issue gets one status comment that is updated
 as the run goes.
 
-Safety in short (details in ADR-005 and ADR-009): agents never hold a GitHub token; they run as
+Safety in short (details in ADR-011 and ADR-009): agents never hold a GitHub token; they run as
 a separate unprivileged Linux user with an empty environment; every command passes an allowlist
 per role; files a role may not change are reverted; the Builder never sees the acceptance tests;
 the issue text is wrapped as untrusted data; the run stops at a token cap.
@@ -55,7 +55,7 @@ the issue text is wrapped as untrusted data; the run stops at a token cap.
 | Analyst, Test Author, Builder | a chain of free Google models, starting with `gemini-3.5-flash-lite` and `gemini-3.1-flash-lite` (500 free requests a day each) (full list in [config.py](workflow/autose/config.py)); a busy model hands over to the next, a model whose daily quota is used up is dropped | Google AI Studio key, secret `GEMINI_API_KEY` |
 | Reviewer | `nvidia/nemotron-3-ultra-550b-a55b` on NVIDIA's free API (build.nvidia.com), falling back to Mistral Large 4, MiniMax M3.1 Flash and then `gpt-oss-120b` on Groq | secrets `NVIDIA_API_KEY` and `GROQ_API_KEY` |
 
-The Reviewer is from a different model family than the Builder on purpose (ADR-006, ADR-008).
+The Reviewer is from a different model family than the Builder on purpose (ADR-008, ADR-012).
 Models can be changed without code changes through the repository variables
 `AUTOSE_BUILD_MODELS` and `AUTOSE_REVIEW_MODELS` (comma separated fallback chains).
 
