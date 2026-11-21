@@ -485,7 +485,7 @@ def parse_args(argv=None):
     p.add_argument('--round', type=int, default=0)
     p.add_argument('--resume-from', type=int, default=1, choices=[1, 2, 3])
     p.add_argument('--prev-run-id', default='')
-    p.add_argument('--arch-context', default='full', choices=['full', 'map'])
+    p.add_argument('--arch-context', default='map', choices=['full', 'map'])   # ADR-016 (E2)
     p.add_argument('--stop-after', type=int, default=5, choices=[4, 5])
     p.add_argument('--out', default='out')
     return p.parse_args(argv)

@@ -1,0 +1,73 @@
+experiment,folder,kind,task,variant,trial,issue,pr,run_id,result,claimed,expected,correct,stopped_at,stages_passed,retries,steps,tokens,seconds,hidden_tests,models,note
+P4,I1-try1,build,I1,,,3,,44690536504,stopped,,PR or stages 1-4 pass,no,"1: FAIL: missing ""Verdict: READY|PARTIALLY-READY|NOT-READY"" line; no requirement lines of the",,0,0,0,0,,,
+P4,I1-try2,build,I1,,,3,,44691931258,stopped,,PR or stages 1-4 pass,no,"1: FAIL: missing ""Verdict: READY|PARTIALLY-READY|NOT-READY"" line; no requirement lines of the",,0,0,0,0,,,
+P4,I1-try3,build,I1,,,3,,44692766501,stopped,,PR or stages 1-4 pass,no,1: Error: ServiceUnavailableError,,0,13,114394,0,,gemini-3.8-flash,
+P4,I1-try4,build,I1,,,3,,44739862609,incomplete,,PR or stages 1-4 pass,no,,1 2,1,33,430411,3217,,gemini-3-flash-preview gemini-3.1-flash-lite gemini-3.5-flash gemini-3.8-flash,
+P4,I1-try5,build,I1,,,3,7,44777819084,pr_open,,PR or stages 1-4 pass,yes,,1 2 4a 3 4b 5,0,37,197640,369,3/3,gemini-3.5-flash-lite,
+P4,I2,build,I2,,,9,,44790247695,stopped,,PR or stages 1-4 pass,no,"1: FAIL: AC-FR001-a has no observable expected result after ""->""; AC-FR002-a has no observabl",,0,0,137331,0,,,
+P4,I2-try2,build,I2,,,9,12,44816038999,pr_open,,PR or stages 1-4 pass,yes,,1 2 4a 3 4b 5,1,33,169840,139,3/3,gemini-3.1-flash-lite gemini-3.5-flash-lite,
+P4,I3,build,I3,,,10,,44790279547,stopped,,PR or stages 1-4 pass,yes,4b: 1 failing (attempt 3),1 2 4a 3,2,48,788524,202,4/4,gemini-3.1-flash-lite gemini-3.5-flash-lite,
+P4,I3-try2,build,I3,,,10,,44819950934,stopped,,PR or stages 1-4 pass,yes,4b: 1 failing (attempt 3),1 2 4a 3,3,37,386590,95,4/4,gemini-3.1-flash-lite gemini-3.5-flash-lite,
+P4,I3-try3,build,I3,,,10,19,44874308479,pr_open,,PR or stages 1-4 pass,yes,,1 2 4a 3 4b 5,0,47,289956,214,4/4,gemini-3.1-flash-lite gemini-3.5-flash-lite,
+P4,I4,build,I4,,,14,15,44821760207,pr_open,,PR or stages 1-4 pass,yes,,1 2 4a 3 4b 5,1,31,228056,196,3/3,gemini-3.1-flash-lite gemini-3.5-flash-lite,
+P4,I5,build,I5,,,18,,44874333544,stopped,,NOT-READY stop,yes,1: FAIL: the spec says NOT-READY: the issue cannot be specified without answers from a person,,0,0,61843,0,,,
+P4,I1-try5,review,I1,independent,,3,7,44777819084,INCONCLUSIVE,,APPROVE,no,,,,1,0,,,,no valid verdict in review.json
+P4,I1-review2,review,I1,independent,,3,7,44788824929,APPROVE,APPROVE,APPROVE,yes,,,,17,67582,,,gpt-oss-120b qwen3.8-27b,"no must-fix findings, break-it test run, scores >= 7"
+P4,I2-try2,review,I2,independent,,9,12,44816038999,INCONCLUSIVE,,APPROVE,no,,,,3,6949,,,gpt-oss-120b,no valid verdict in review.json
+P4,I2-review2,review,I2,independent,,9,12,44819910385,INCONCLUSIVE,APPROVE,APPROVE,no,,,,20,80865,,,gpt-oss-120b qwen3.8-27b,claimed APPROVE; approval without a break-it test that was actually run
+P4,I2-review3,review,I2,independent,,9,12,44874280785,INCONCLUSIVE,,APPROVE,no,,,,20,82287,,,gpt-oss-120b qwen3.8-27b,no valid verdict in review.json
+P4,I2-review4,review,I2,independent,,9,12,44880309740,APPROVE,APPROVE,APPROVE,yes,,,,12,43146,,,gpt-oss-120b qwen3.8-27b,"no must-fix findings, break-it test run, scores >= 7"
+P4,I3-try3,review,I3,independent,,10,19,44874308479,APPROVE,APPROVE,APPROVE,yes,,,,19,77310,,,gpt-oss-120b qwen3.8-27b,"no must-fix findings, break-it test run, scores >= 7"
+P4,I4,review,I4,independent,,14,15,44821760207,INCONCLUSIVE,,APPROVE,no,,,,1,3588,,,gpt-oss-120b,no valid verdict in review.json
+P4,I4-review2,review,I4,independent,,14,15,44880091825,INCONCLUSIVE,APPROVE,APPROVE,no,,,,4,15674,,,gpt-oss-120b qwen3.8-27b,claimed APPROVE; approval without a break-it test that was actually run
+P4,I4-review3,review,I4,independent,,14,15,44881304977,INCONCLUSIVE,APPROVE,APPROVE,no,,,,6,22368,,,gpt-oss-120b qwen3.8-27b,claimed APPROVE; approval without a break-it test that was actually run
+P4,I4-review4-20steps,review,I4,independent,,14,15,44893115338,INCONCLUSIVE,,APPROVE,no,,,,20,157719,,,nemotron-3-ultra-550b-a55b,no valid verdict in review.json
+P4,I4-review5,review,I4,independent,,14,15,44896136737,APPROVE,APPROVE,APPROVE,yes,,,,23,259267,,,nemotron-3-ultra-550b-a55b,"no must-fix findings, break-it test run, scores >= 7"
+E1,E1/baseline-t1-S1,review,S1,baseline,1,20,21,44882116757,APPROVE,APPROVE,APPROVE,yes,,,,8,64614,,,gemini-3.5-flash-lite,baseline variant: verdict taken as given
+E1,E1/baseline-t2-S1,review,S1,baseline,2,20,21,44882731275,APPROVE,APPROVE,APPROVE,yes,,,,5,35444,,,gemini-3.5-flash-lite,baseline variant: verdict taken as given
+E1,E1/independent-t1-S1,review,S1,independent,1,20,21,44896124333,APPROVE,APPROVE,APPROVE,yes,,,,16,77539,,,nemotron-3-ultra-550b-a55b,"no must-fix findings, break-it test run, scores >= 7"
+E1,E1/independent-t2-S1,review,S1,independent,2,20,21,44897896015,APPROVE,APPROVE,APPROVE,yes,,,,14,80583,,,nemotron-3-ultra-550b-a55b,"no must-fix findings, break-it test run, scores >= 7"
+E1,E1/baseline-t1-S2,review,S2,baseline,1,22,23,44881995342,APPROVE,APPROVE,REQUEST_CHANGES,no (false approval),,,,3,17573,,,gemini-3.5-flash-lite,baseline variant: verdict taken as given
+E1,E1/baseline-t2-S2,review,S2,baseline,2,22,23,44882597126,APPROVE,APPROVE,REQUEST_CHANGES,no (false approval),,,,6,41935,,,gemini-3.5-flash-lite,baseline variant: verdict taken as given
+E1,E1/independent-t1-S2,review,S2,independent,1,22,23,44896332497,REQUEST_CHANGES,REQUEST_CHANGES,REQUEST_CHANGES,yes,,,,32,340750,,,nemotron-3-ultra-550b-a55b,2 must-fix finding(s) with evidence
+E1,E1/independent-t2-S2,review,S2,independent,2,22,23,44898092864,INCONCLUSIVE,,REQUEST_CHANGES,no,,,,5,10710,,,nemotron-3-ultra-550b-a55b,no valid verdict in review.json
+E1,E1/baseline-t1-S3,review,S3,baseline,1,24,25,44881873171,APPROVE,APPROVE,REQUEST_CHANGES,no (false approval),,,,6,49584,,,gemini-3.5-flash-lite,baseline variant: verdict taken as given
+E1,E1/baseline-t2-S3,review,S3,baseline,2,24,25,44882496078,APPROVE,APPROVE,REQUEST_CHANGES,no (false approval),,,,5,35987,,,gemini-3.5-flash-lite,baseline variant: verdict taken as given
+E1,E1/independent-t1-S3,review,S3,independent,1,24,25,44896633895,INCONCLUSIVE,,REQUEST_CHANGES,no,,,,40,479846,,,nemotron-3-ultra-550b-a55b,no valid verdict in review.json
+E1,E1/independent-t2-S3,review,S3,independent,2,24,25,44898276252,INCONCLUSIVE,REQUEST_CHANGES,REQUEST_CHANGES,no,,,,40,502355,,,nemotron-3-ultra-550b-a55b,claimed REQUEST_CHANGES; changes requested but no finding had evidence
+E1,E1/baseline-t1-S4,review,S4,baseline,1,26,27,44881709783,APPROVE,APPROVE,REQUEST_CHANGES,no (false approval),,,,12,122866,,,gemini-3.5-flash-lite,baseline variant: verdict taken as given
+E1,E1/baseline-t2-S4,review,S4,baseline,2,26,27,44882374328,APPROVE,APPROVE,REQUEST_CHANGES,no (false approval),,,,3,18982,,,gemini-3.5-flash-lite,baseline variant: verdict taken as given
+E1,E1/independent-t1-S4,review,S4,independent,1,26,27,44896989479,INCONCLUSIVE,REQUEST_CHANGES,REQUEST_CHANGES,no,,,,40,511648,,,nemotron-3-ultra-550b-a55b,claimed REQUEST_CHANGES; changes requested but no finding had evidence
+E1,E1/independent-t2-S4,review,S4,independent,2,26,27,44898639758,REQUEST_CHANGES,REQUEST_CHANGES,REQUEST_CHANGES,yes,,,,40,488100,,,nemotron-3-ultra-550b-a55b,1 must-fix finding(s) with evidence
+E1,E1/baseline-t1-S5,review,S5,baseline,1,28,29,44881578737,APPROVE,APPROVE,REQUEST_CHANGES,no (false approval),,,,3,18930,,,gemini-3.5-flash-lite,baseline variant: verdict taken as given
+E1,E1/baseline-t2-S5,review,S5,baseline,2,28,29,44882252698,APPROVE,APPROVE,REQUEST_CHANGES,no (false approval),,,,3,4823,,,gemini-3.5-flash-lite,baseline variant: verdict taken as given
+E1,E1/independent-t1-S5,review,S5,independent,1,28,29,44897483225,REQUEST_CHANGES,REQUEST_CHANGES,REQUEST_CHANGES,yes,,,,40,521046,,,nemotron-3-ultra-550b-a55b,1 must-fix finding(s) with evidence
+E1,E1/independent-t2-S5,review,S5,independent,2,28,29,44899126385,INCONCLUSIVE,REQUEST_CHANGES,REQUEST_CHANGES,no,,,,40,591141,,,nemotron-3-ultra-550b-a55b,claimed REQUEST_CHANGES; changes requested but no finding had evidence
+E1-pilot,E1-groq-pilot/independent-t1-S1,review,S1,independent,1,20,21,44881790938,APPROVE,APPROVE,APPROVE,yes,,,,17,61803,,,gpt-oss-120b qwen3.8-27b,"no must-fix findings, break-it test run, scores >= 7"
+E1-pilot,E1-groq-pilot/independent-t2-S1,review,S1,independent,2,20,21,44883413453,INCONCLUSIVE,,APPROVE,no,,,,2,1778,,,qwen3.8-27b,no valid verdict in review.json
+E1-pilot,E1-groq-pilot/independent-t1-S2,review,S2,independent,1,22,23,44882132462,REQUEST_CHANGES,REQUEST_CHANGES,REQUEST_CHANGES,yes,,,,7,24014,,,gpt-oss-120b qwen3.8-27b,1 must-fix finding(s) with evidence
+E1-pilot,E1-groq-pilot/independent-t2-S2,review,S2,independent,2,22,23,44883534958,INCONCLUSIVE,,REQUEST_CHANGES,no,,,,3,5150,,,gpt-oss-120b qwen3.8-27b,no valid verdict in review.json
+E1-pilot,E1-groq-pilot/independent-t1-S3,review,S3,independent,1,24,25,44882303209,INCONCLUSIVE,REQUEST_CHANGES,REQUEST_CHANGES,no,,,,4,17065,,,gpt-oss-120b qwen3.8-27b,claimed REQUEST_CHANGES; changes requested but no finding had evidence
+E1-pilot,E1-groq-pilot/independent-t2-S3,review,S3,independent,2,24,25,44883687666,INCONCLUSIVE,,REQUEST_CHANGES,no,,,,1,0,,,,no valid verdict in review.json
+E1-pilot,E1-groq-pilot/independent-t1-S4,review,S4,independent,1,26,27,44882451753,INCONCLUSIVE,,REQUEST_CHANGES,no,,,,20,81429,,,gpt-oss-120b qwen3.8-27b,no valid verdict in review.json
+E1-pilot,E1-groq-pilot/independent-t2-S4,review,S4,independent,2,26,27,44883814058,INCONCLUSIVE,,REQUEST_CHANGES,no,,,,1,0,,,,no valid verdict in review.json
+E1-pilot,E1-groq-pilot/independent-t1-S5,review,S5,independent,1,28,29,44882975499,INCONCLUSIVE,,REQUEST_CHANGES,no,,,,10,36173,,,gpt-oss-120b qwen3.8-27b,no valid verdict in review.json
+E1-pilot,E1-groq-pilot/independent-t2-S5,review,S5,independent,2,28,29,44883969509,INCONCLUSIVE,,REQUEST_CHANGES,no,,,,1,0,,,,no valid verdict in review.json
+E1-pilot2,E1-nemotron-20steps/independent-t1-S1,review,S1,independent,1,20,21,44893106056,INCONCLUSIVE,APPROVE,APPROVE,no,,,,20,148080,,,nemotron-3-ultra-550b-a55b,claimed APPROVE; approval without a break-it test that was actually run
+E1-pilot2,E1-nemotron-20steps/independent-t2-S1,review,S1,independent,2,20,21,44894303699,INCONCLUSIVE,,APPROVE,no,,,,20,110640,,,nemotron-3-ultra-550b-a55b,no valid verdict in review.json
+E1-pilot2,E1-nemotron-20steps/independent-t1-S2,review,S2,independent,1,22,23,44893374487,INCONCLUSIVE,,REQUEST_CHANGES,no,,,,20,97819,,,nemotron-3-ultra-550b-a55b,no valid verdict in review.json
+E1-pilot2,E1-nemotron-20steps/independent-t2-S2,review,S2,independent,2,22,23,44894535314,INCONCLUSIVE,,REQUEST_CHANGES,no,,,,20,154287,,,nemotron-3-ultra-550b-a55b,no valid verdict in review.json
+E1-pilot2,E1-nemotron-20steps/independent-t1-S3,review,S3,independent,1,24,25,44893592450,INCONCLUSIVE,,REQUEST_CHANGES,no,,,,20,210238,,,nemotron-3-ultra-550b-a55b,no valid verdict in review.json
+E1-pilot2,E1-nemotron-20steps/independent-t2-S3,review,S3,independent,2,24,25,44894937912,INCONCLUSIVE,,REQUEST_CHANGES,no,,,,20,176334,,,nemotron-3-ultra-550b-a55b,no valid verdict in review.json
+E1-pilot2,E1-nemotron-20steps/independent-t1-S4,review,S4,independent,1,26,27,44893855893,INCONCLUSIVE,,REQUEST_CHANGES,no,,,,20,177890,,,nemotron-3-ultra-550b-a55b,no valid verdict in review.json
+E1-pilot2,E1-nemotron-20steps/independent-t2-S4,review,S4,independent,2,26,27,44895133458,INCONCLUSIVE,,REQUEST_CHANGES,no,,,,20,145130,,,nemotron-3-ultra-550b-a55b,no valid verdict in review.json
+E1-pilot2,E1-nemotron-20steps/independent-t1-S5,review,S5,independent,1,28,29,44894089142,INCONCLUSIVE,,REQUEST_CHANGES,no,,,,20,263945,,,nemotron-3-ultra-550b-a55b,no valid verdict in review.json
+E1-pilot2,E1-nemotron-20steps/independent-t2-S5,review,S5,independent,2,28,29,44895377629,INCONCLUSIVE,,REQUEST_CHANGES,no,,,,20,268833,,,nemotron-3-ultra-550b-a55b,no valid verdict in review.json
+E2,E2/full-t1-I1,build,I1,full,1,30,,44884513938,stopped-after-4,,PR or stages 1-4 pass,yes,,1 2 4a 3 4b,1,25,185414,69,3/3,gemini-3.1-flash-lite gemini-3.5-flash-lite,
+E2,E2/map-t1-I1,build,I1,map,1,30,,44885907255,stopped-after-4,,PR or stages 1-4 pass,yes,,1 2 4a 3 4b,0,26,176287,719,3/3,gemini-3.1-flash-lite gemini-3.5-flash-lite,
+E2,E2/full-t1-I2,build,I2,full,1,31,,44884809106,stopped-after-4,,PR or stages 1-4 pass,yes,,1 2 4a 3 4b,1,31,189080,231,3/3,gemini-3.1-flash-lite gemini-3.5-flash-lite,
+E2,E2/map-t1-I2,build,I2,map,1,31,,44885672921,stopped-after-4,,PR or stages 1-4 pass,yes,,1 2 4a 3 4b,0,26,117620,80,3/3,gemini-3.1-flash-lite gemini-3.5-flash-lite,
+E2,E2/full-t1-I3,build,I3,full,1,32,,44885229014,stopped-after-4,,PR or stages 1-4 pass,yes,,1 2 4a 3 4b,2,25,236519,47,4/4,gemini-3.1-flash-lite gemini-3.5-flash-lite,
+E2,E2/map-t1-I3,build,I3,map,1,32,,44885229062,stopped-after-4,,PR or stages 1-4 pass,yes,,1 2 4a 3 4b,0,28,151527,85,4/4,gemini-3.1-flash-lite gemini-3.5-flash-lite,
+E2,E2/full-t1-I4,build,I4,full,1,33,,44885472128,stopped-after-4,,PR or stages 1-4 pass,yes,,1 2 4a 3 4b,1,30,252465,154,3/3,gemini-3.1-flash-lite gemini-3.5-flash-lite,
+E2,E2/map-t1-I4,build,I4,map,1,33,,44884516847,stopped-after-4,,PR or stages 1-4 pass,yes,,1 2 4a 3 4b,1,47,389620,438,3/3,gemini-3.1-flash-lite gemini-3.5-flash-lite,

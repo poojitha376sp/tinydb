@@ -13,7 +13,7 @@ The original TinyDB readme is in [README.rst](README.rst).
 | Workflow | [.github/workflows/autose.yml](.github/workflows/autose.yml), copy in [workflow/workflows/](workflow/workflows/) |
 | Agent code | [workflow/autose/](workflow/autose/) |
 | Prompts | [workflow/prompts/](workflow/prompts/) |
-| Design | [architecture/views/](architecture/views/), [architecture/decisions/](architecture/decisions/) (ADR-001 to ADR-010) |
+| Design | [architecture/views/](architecture/views/), [architecture/decisions/](architecture/decisions/) (ADR-001 to ADR-017; ADR-005, 006 and 010 superseded and kept) |
 | Experiments | [experiment/](experiment/) |
 | Results | [results/results.csv](results/results.csv), [results/runs.md](results/runs.md) |
 | Report | [report.pdf](report.pdf) |
