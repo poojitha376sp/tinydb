@@ -54,6 +54,6 @@ Build stages total 290K tokens (Analyst 128K, Test Author 36K, Builder 126K); th
 What does not show in this happy path, and where to see it:
 - Stage 4b failing and going back to 3, or the same failure twice (ADR-002, ADR-013): I3's two
   earlier runs, 44790279547 and 44819950934, in `results/runs.md`.
-- Stage 1 stopping on NOT-READY with open questions for a person: I5,
+- Stage 1 stopping on NOT-READY, requirements marked as needing clarification by a person: I5,
   [44874333544](https://github.com/poojitha376sp/tinydb/actions/runs/44874333544).
 - A review that ends INCONCLUSIVE and is labelled `needs-human`: the PR #15 reviews.
