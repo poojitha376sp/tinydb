@@ -332,8 +332,9 @@ class GuardedEnvironment(LocalEnvironment):
     """Runs each command through the role allowlist, as the sandbox user."""
 
     MAX_FINISH_REFUSALS = 3    # after this many, finishing is allowed and plain code judges the result
+    WARN_STEPS = 5             # from this many steps before the limit, each output says how many are left
 
-    def __init__(self, role: str, cwd: Path, required=(), finish_check=None):
+    def __init__(self, role: str, cwd: Path, required=(), finish_check=None, step_limit=0):
         super().__init__(cwd=str(cwd), timeout=config.COMMAND_TIMEOUT)
         self.role = role
         self.blocked = []
@@ -342,8 +343,23 @@ class GuardedEnvironment(LocalEnvironment):
         self.early_submits = 0
         self.finish_refusals = 0
         self.ran = []                     # commands really run (heredoc bodies removed)
+        self.step_limit = step_limit
+        self.calls = 0
 
     def execute(self, action: dict, cwd: str = '', *, timeout=None) -> dict:
+        """E1 on NVIDIA: Nemotron found S2's defect but spent all 20 steps checking and never
+        wrote review.json. Near the limit, every output now says how many steps are left."""
+        self.calls += 1
+        output = self._execute(action, timeout=timeout)
+        left = self.step_limit - self.calls
+        if self.step_limit and 0 <= left <= self.WARN_STEPS:
+            todo = ', '.join(self.required) or 'your output file'
+            output = {**output, 'output': output['output'] + (
+                f'\n[{left} steps left. If {todo} is not written yet, write it now; then finish.]'
+                if left else '\n[That was your last step.]')}
+        return output
+
+    def _execute(self, action: dict, *, timeout=None) -> dict:
         command = action.get('command', '')
         missing = [r for r in self.required if not (Path(self.config.cwd) / r).is_file()]
         if missing and 'COMPLETE_TASK_AND_SUBMIT_FINAL_OUTPUT' in command:
@@ -392,7 +408,7 @@ def run_agent(role: str, prompt_name: str, task: str, workdir: Path, trajectory:
     """Run one agent session; return exit status, steps, tokens and blocked commands."""
     models = models or config.BUILD_MODELS
     model = FallbackModel(role, models)
-    env = GuardedEnvironment(role, workdir, required, finish_check)
+    env = GuardedEnvironment(role, workdir, required, finish_check, config.STEP_LIMITS[role])
     system = SYSTEM_COMMON.format(allowed=', '.join(sorted(guard.ALLOW[role]))) + '\n' + load_prompt(prompt_name)
     agent = DefaultAgent(
         model, env,

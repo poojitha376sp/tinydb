@@ -13,7 +13,9 @@ STEP_LIMITS = {
     'analyst': int(os.environ.get('AUTOSE_STEPS_ANALYST', 25)),
     'test_author': int(os.environ.get('AUTOSE_STEPS_TEST_AUTHOR', 25)),
     'builder': int(os.environ.get('AUTOSE_STEPS_BUILDER', 35)),
-    'reviewer': int(os.environ.get('AUTOSE_STEPS_REVIEWER', 20)),   # 8000 tokens/min on Groq
+    # 20 suited Groq's 8000 tokens/min; on NVIDIA, Nemotron used all 20 checking and wrote no
+    # verdict (E1, 21 Nov). The Gemini baseline never used more than 12, so 40 changes only E1-B.
+    'reviewer': int(os.environ.get('AUTOSE_STEPS_REVIEWER', 40)),
 }
 RUN_TOKEN_CAP = int(os.environ.get('AUTOSE_TOKEN_CAP', 3_000_000))
 COMMAND_TIMEOUT = 120            # seconds per shell command an agent runs
