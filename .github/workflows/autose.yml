@@ -1,5 +1,5 @@
 # AutoSE A3: issue in, independently reviewed pull request out.
-# Design: architecture/decisions/ADR-001 ... ADR-010. Agent code: workflow/autose/.
+# Design: architecture/decisions/ADR-001 ... ADR-017. Agent code: workflow/autose/.
 #
 # Start it by adding the label "autose" to an issue, or by commenting "/autose" on an
 # issue (collaborators only). A person always makes the final merge decision.
@@ -25,8 +25,8 @@ on:
         description: Run whose artifacts (spec, design, tests, review) a later round reuses
         default: ''
       arch_context:
-        description: "Experiment E2: architecture context for the design stage (full or map)"
-        default: full
+        description: "Architecture context for the design stage: map (default since E2, ADR-016) or full"
+        default: map
       stop_after:
         description: "Experiments: 4 = stop after testing, 5 = full run with PR"
         default: '5'
@@ -133,7 +133,7 @@ jobs:
           ROUND: ${{ inputs.round || '0' }}
           RESUME: ${{ inputs.resume_from || '1' }}
           PREV: ${{ inputs.prev_run_id }}
-          ARCH: ${{ inputs.arch_context || 'full' }}
+          ARCH: ${{ inputs.arch_context || 'map' }}
           STOP_AFTER: ${{ inputs.stop_after || '5' }}
         run: |
           python -m autose.orchestrator --issue "$ISSUE" --round "$ROUND" --resume-from "$RESUME" \
@@ -154,7 +154,7 @@ jobs:
       always() && (needs.gate.outputs.mode == 'review_only'
         || (needs.gate.result == 'success' && needs.orchestrate.outputs.status == 'pr_open'))
     runs-on: ubuntu-latest
-    timeout-minutes: 45   # Groq free tier: 8000 tokens/min, so about one reviewer step a minute
+    timeout-minutes: 45   # 40 reviewer steps; on NVIDIA an E1 review took about 3 minutes
     permissions:
       contents: read
       issues: read
