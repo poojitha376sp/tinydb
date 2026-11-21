@@ -465,7 +465,7 @@ def test_repr():
     Fruit = Query()
 
     assert repr(Fruit) == "Query()"
-    assert repr(Fruit.type == 'peach') == "QueryImpl('==', ('type',), 'peach')"
+    assert repr(Fruit.type == 'peach') == "QueryImpl('==', ('type',), 'str', 'peach')"
 
 
 def test_subclass():
@@ -527,3 +527,12 @@ def test_get_item():
 
     assert query({'test': 1})
     assert not query({'test': 0})
+
+
+def test_list_and_tuple_equality_do_not_share_cache():
+    from tinydb import TinyDB
+    from tinydb.storages import MemoryStorage
+    db = TinyDB(storage=MemoryStorage)
+    db.insert({'t': [1, 2]})
+    assert len(db.search(Query().t == [1, 2])) == 1
+    assert len(db.search(Query().t == (1, 2))) == 0
