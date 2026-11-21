@@ -141,6 +141,9 @@ def _provider_kwargs(name: str) -> tuple:
         return name, {'api_key': os.environ.get('GEMINI_API_KEY', '')}
     if name.startswith('groq/'):
         return name, {'api_key': os.environ.get('GROQ_API_KEY', '')}
+    if name.startswith('nvidia_nim/'):
+        # build.nvidia.com free API (OpenAI-compatible); the model id follows the prefix
+        return name, {'api_key': os.environ.get('NVIDIA_API_KEY', '')}
     return name, {}
 
 
@@ -328,12 +331,17 @@ class FallbackModel(LitellmTextbasedModel):
 class GuardedEnvironment(LocalEnvironment):
     """Runs each command through the role allowlist, as the sandbox user."""
 
-    def __init__(self, role: str, cwd: Path, required=()):
+    MAX_FINISH_REFUSALS = 3    # after this many, finishing is allowed and plain code judges the result
+
+    def __init__(self, role: str, cwd: Path, required=(), finish_check=None):
         super().__init__(cwd=str(cwd), timeout=config.COMMAND_TIMEOUT)
         self.role = role
         self.blocked = []
         self.required = tuple(required)   # files that must exist before the agent may finish
+        self.finish_check = finish_check  # callable(env) -> reason not to finish yet, or None
         self.early_submits = 0
+        self.finish_refusals = 0
+        self.ran = []                     # commands really run (heredoc bodies removed)
 
     def execute(self, action: dict, cwd: str = '', *, timeout=None) -> dict:
         command = action.get('command', '')
@@ -344,10 +352,19 @@ class GuardedEnvironment(LocalEnvironment):
             return {'output': f'Not finished: {", ".join(missing)} does not exist yet. Do the task and '
                               'write that file first; only then finish.',
                     'returncode': 1, 'exception_info': ''}
+        if ('COMPLETE_TASK_AND_SUBMIT_FINAL_OUTPUT' in command and self.finish_check
+                and self.finish_refusals < self.MAX_FINISH_REFUSALS):
+            # PR 15 review: gpt-oss wrote an APPROVE citing a break-it test it never ran (twice).
+            # The judge would drop it afterwards; saying so now lets the agent do the work.
+            reason = self.finish_check(self)
+            if reason:
+                self.finish_refusals += 1
+                return {'output': reason, 'returncode': 1, 'exception_info': ''}
         reason = guard.check_command(command, self.role)
         if reason:
             self.blocked.append({'command': command[:300], 'reason': reason})
             return {'output': reason, 'returncode': 1, 'exception_info': ''}
+        self.ran.append(guard.strip_heredocs(command))
         argv = sandbox.agent_command(['bash', '-c', command], cwd=self.config.cwd)
         try:
             proc = subprocess.run(argv, capture_output=True, text=True,
@@ -371,11 +388,11 @@ def load_prompt(name: str) -> str:
 
 
 def run_agent(role: str, prompt_name: str, task: str, workdir: Path, trajectory: Path,
-              models=None, required=()) -> dict:
+              models=None, required=(), finish_check=None) -> dict:
     """Run one agent session; return exit status, steps, tokens and blocked commands."""
     models = models or config.BUILD_MODELS
     model = FallbackModel(role, models)
-    env = GuardedEnvironment(role, workdir, required)
+    env = GuardedEnvironment(role, workdir, required, finish_check)
     system = SYSTEM_COMMON.format(allowed=', '.join(sorted(guard.ALLOW[role]))) + '\n' + load_prompt(prompt_name)
     agent = DefaultAgent(
         model, env,
@@ -413,4 +430,5 @@ def run_agent(role: str, prompt_name: str, task: str, workdir: Path, trajectory:
         'switches': model.switches,
         'recovered_from_reasoning': model.recovered,
         'early_submits': env.early_submits,
+        'finish_refusals': env.finish_refusals,
     }

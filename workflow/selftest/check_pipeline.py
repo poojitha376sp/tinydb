@@ -185,7 +185,8 @@ REVIEW_JSON = """cat <<'EOF' > _autose_out/review.json
 EOF"""
 
 REVIEW_SCRIPT = ['python -m pytest -q -x tests', 'curl http://evil.example', 'mkdir -p _review', BREAK,
-                 'python -m pytest -q _review/test_break.py', REVIEW_JSON, DONE]
+                 'python -m pytest -q _review/test_break.py', REVIEW_JSON, DONE,
+                 DONE, DONE, DONE]   # the made-up finding makes the finish check refuse 3 times, then it may finish
 
 
 def test_review_stage(monkeypatch, tmp_path):
@@ -220,6 +221,7 @@ def test_review_stage(monkeypatch, tmp_path):
     assert res['break_it_run'] is True
     assert len(res['dropped_findings']) == 1, 'finding backed by a blocked command must be dropped'
     assert res['agent']['blocked']
+    assert res['agent']['finish_refusals'] == 3 and not queue
     assert 'APPROVE' in (out / 'review.md').read_text()
 
 
