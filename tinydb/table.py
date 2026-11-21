@@ -3,6 +3,7 @@ This module implements tables, the central place for accessing and manipulating
 data in TinyDB.
 """
 
+import copy
 from collections.abc import Callable, Iterable, Iterator, Mapping, MutableMapping
 from typing import (
     NoReturn,
@@ -444,6 +445,16 @@ class Table:
         :returns: a list containing the updated document's ID
         """
 
+        # Take a snapshot of the whole database so a failing update can be
+        # rolled back and no document is left half-updated.
+        snapshot = copy.deepcopy(self._storage.read())
+        try:
+            return self._update(fields, cond, doc_ids)
+        except Exception:
+            self._storage.write(snapshot)
+            raise
+
+    def _update(self, fields, cond, doc_ids):
         # Define the function that will perform the update
         if callable(fields):
             def perform_update(table, doc_id):

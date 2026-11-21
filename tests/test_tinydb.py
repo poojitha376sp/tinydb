@@ -837,3 +837,13 @@ def test_lambda_query():
     query.is_cacheable = lambda: False
     assert db.search(query) == [{'foo': 'bar'}]
     assert not db._query_cache
+
+
+def test_failed_update_leaves_documents_unchanged():
+    from tinydb.operations import delete
+    db = TinyDB(storage=MemoryStorage)
+    db.insert({'x': 1, 'k': 1})
+    db.insert({'k': 1})
+    with pytest.raises(KeyError):
+        db.update(delete('x'))
+    assert db.all() == [{'x': 1, 'k': 1}, {'k': 1}]
