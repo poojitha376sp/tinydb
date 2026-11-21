@@ -115,7 +115,8 @@ class Run:
             task = (f'GitHub issue #{self.issue_no}:\n{self.issue_block()}\n\n'
                     f'Write the specification to _autose_out/spec.md.{feedback}')
             run = agents.run_agent('analyst', 'analyst_spec', task, tree,
-                                   self.out / 'trajectories' / f'analyst_spec_{attempt}.json')
+                                   self.out / 'trajectories' / f'analyst_spec_{attempt}.json',
+                                   required=['_autose_out/spec.md'])
             self.agent_ran('1-requirements', run)
             self.enforce_writes('analyst', tree)
             spec_path = tree / '_autose_out/spec.md'
@@ -147,7 +148,8 @@ class Run:
             task = (f'Plan the change for GitHub issue #{self.issue_no}. The issue for reference:\n'
                     f'{self.issue_block()}\n\nWrite _autose_out/design.md.{feedback}')
             run = agents.run_agent('analyst', 'analyst_design', task, tree,
-                                   self.out / 'trajectories' / f'analyst_design_{attempt}_{int(t0)}.json')
+                                   self.out / 'trajectories' / f'analyst_design_{attempt}_{int(t0)}.json',
+                                   required=['_autose_out/design.md'])
             self.agent_ran('2-design', run)
             self.enforce_writes('analyst', tree)
             path = tree / '_autose_out/design.md'
@@ -171,7 +173,8 @@ class Run:
             task = (f'Write the acceptance tests to {self.test_file}. Acceptance criteria ids: '
                     f'{", ".join(acs)}.{feedback}')
             run = agents.run_agent('test_author', 'test_author', task, tree,
-                                   self.out / 'trajectories' / f'test_author_{attempt}.json')
+                                   self.out / 'trajectories' / f'test_author_{attempt}.json',
+                                   required=[self.test_file])
             self.agent_ran('4a-tests', run)
             self.enforce_writes('test_author', tree)
             extra = [p for p in sandbox.changed_files(self.base, tree)['added']

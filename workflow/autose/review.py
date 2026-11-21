@@ -148,7 +148,8 @@ def main(argv=None):
         models, prompt = config.REVIEW_MODELS, 'reviewer'
 
     traj = out / 'reviewer_trajectory.json'
-    run = agents.run_agent('reviewer', prompt, task, tree, traj, models=models)
+    run = agents.run_agent('reviewer', prompt, task, tree, traj, models=models,
+                           required=['_autose_out/review.json'])
     raw_path = tree / '_autose_out/review.json'
     try:
         raw = json.loads(raw_path.read_text())
