@@ -281,3 +281,15 @@ def test_reviewer_chain_is_not_google_and_maps_keys(monkeypatch):
     name, kw = agents._provider_kwargs('nvidia_nim/nvidia/nemotron-3-ultra-550b-a55b')
     assert name == 'nvidia_nim/nvidia/nemotron-3-ultra-550b-a55b' and kw == {'api_key': 'k'}
     assert agents._budget(name) == config.CONTEXT_BUDGET['nvidia_nim/']
+
+
+def test_outputs_count_down_the_last_steps(tmp_path):
+    # E1 on NVIDIA: Nemotron found the S2 defect but used all 20 steps and wrote no review.json
+    from autose import agents
+    (tmp_path / '_autose_out').mkdir()
+    env = agents.GuardedEnvironment('reviewer', tmp_path, ['_autose_out/review.json'], step_limit=8)
+    outs = [env.execute({'command': 'echo COMPLETE_TASK_AND_SUBMIT_FINAL_OUTPUT'})['output']
+            for _ in range(8)]
+    assert 'steps left' not in outs[1]
+    assert '[5 steps left. If _autose_out/review.json is not written yet' in outs[2]
+    assert '[1 steps left' in outs[6] and '[That was your last step.]' in outs[7]
