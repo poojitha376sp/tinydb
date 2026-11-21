@@ -18,6 +18,8 @@ os.environ.setdefault('MSWEA_MODEL_RETRY_STOP_AFTER_ATTEMPT', '8')
 
 import litellm  # noqa: E402
 from minisweagent.agents.default import DefaultAgent  # noqa: E402
+from jinja2 import StrictUndefined, Template  # noqa: E402
+from minisweagent.exceptions import FormatError  # noqa: E402
 from minisweagent.environments.local import LocalEnvironment  # noqa: E402
 from minisweagent.models.litellm_textbased_model import LitellmTextbasedModel  # noqa: E402
 
@@ -34,9 +36,48 @@ OBSERVATION = (
     "<output_tail>\n{{ output.output[-4000:] }}\n</output_tail>{%- endif -%}"
 )
 
-# Up to the LAST closing fence, which may not be followed by a language name: a heredoc that
-# copies the issue's ```python block no longer cuts the command short (runs 4 and 5, issue 9).
-ACTION_REGEX = r"```mswea_bash_command\s*\n(.*)\n```(?![\w`])"
+# mini-swe-agent's regex ends a command at the first ``` line, so a heredoc that copies the
+# issue's ```python block was cut short (runs 4 and 5, issue 9). Reading up to the LAST fence
+# instead merged several blocks of one reply into one command (PR 12 review, issue 10 try 2).
+# So: a fence ends the command unless it is inside an open heredoc.
+ACTION_REGEX = r"```mswea_bash_command\s*\n(.*?)\n```"   # kept for the config; split_actions decides
+_OPEN = re.compile(r"```mswea_bash_command[ \t]*\n")
+_HEREDOC_START = re.compile(r"(?<!<)<<-?[ \t]*(['\"]?)([A-Za-z_]\w*)\1")
+
+
+def _one_block(text: str, heredoc_aware: bool):
+    """Return (command, end offset) for the block starting at ``text``, or None if unclosed."""
+    body, offset, heredoc = [], 0, None
+    for line in text.split('\n'):
+        if heredoc:
+            body.append(line)
+            offset += len(line) + 1
+            if line.strip() == heredoc:
+                heredoc = None
+            continue
+        if line.lstrip().startswith('```'):
+            return '\n'.join(body).strip(), offset + line.index('```') + 3
+        body.append(line)
+        offset += len(line) + 1
+        if heredoc_aware:
+            for m in _HEREDOC_START.finditer(line):
+                heredoc = m.group(2)
+    return None
+
+
+def split_actions(content: str) -> list:
+    """All command blocks in a reply; ``` lines inside an open heredoc belong to the command."""
+    actions, pos = [], 0
+    while True:
+        m = _OPEN.search(content, pos)
+        if not m:
+            return actions
+        rest = content[m.end():]
+        found = _one_block(rest, True) or _one_block(rest, False)   # unterminated heredoc: plain rules
+        if not found:
+            return actions
+        actions.append(found[0])
+        pos = m.end() + found[1]
 
 SYSTEM_COMMON = """You are one agent in an automated software engineering workflow working on the
 TinyDB Python project. You can only act by running shell commands.
@@ -155,7 +196,6 @@ def _daily_quota(e: Exception) -> bool:
     return 'PerDay' in text or 'per day' in text.lower()
 
 
-_ONE_BLOCK = r"```mswea_bash_command\s*\n(.*?)\n```"
 FORMAT_ERROR = ('Your reply had {{actions|length}} command blocks; it needs exactly one. Reply with a '
                 'short THOUGHT and then one block that starts with ```mswea_bash_command on its own '
                 'line. Write the block in your reply itself, not only in your reasoning.')
@@ -170,10 +210,10 @@ def _recover_action(resp) -> bool:
     """
     msg = resp.choices[0].message
     content = msg.content or ''
-    if re.search(_ONE_BLOCK, content, re.DOTALL):
+    if split_actions(content):
         return False
     reasoning = getattr(msg, 'reasoning', None) or getattr(msg, 'reasoning_content', None) or ''
-    found = re.findall(_ONE_BLOCK, reasoning, re.DOTALL)
+    found = split_actions(reasoning)
     if len(found) != 1:
         return False
     msg.content = content.rstrip() + '\n\n```mswea_bash_command\n' + found[0] + '\n```'
@@ -205,6 +245,19 @@ class FallbackModel(LitellmTextbasedModel):
         self.switches = []        # (from, to, reason) for stage_results.json
         self.recovered = 0        # replies whose command was copied from the reasoning
         USAGE.setdefault(role, Usage())
+
+    def _parse_actions(self, response) -> list:
+        content = response.choices[0].message.content or ''
+        actions = split_actions(content)
+        if len(actions) != 1:
+            raise FormatError({
+                'role': 'user',
+                'content': Template(self.config.format_error_template, undefined=StrictUndefined).render(
+                    actions=actions, error=f'Expected exactly 1 action, found {len(actions)}.'),
+                'extra': {'interrupt_type': 'FormatError', 'n_actions': len(actions),
+                          'model_response': content},
+            })
+        return [{'command': a} for a in actions]
 
     def _switch(self, reason: str, drop: bool) -> bool:
         """Move to the next model. ``drop`` removes a model that can never work (404, auth)."""

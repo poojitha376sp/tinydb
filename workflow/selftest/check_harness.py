@@ -119,12 +119,25 @@ def test_spec_empty_list_is_an_expected_result():
 
 
 def test_action_keeps_fences_inside_a_heredoc():
-    from minisweagent.models.utils.actions_text import parse_regex_actions
     from autose import agents
     resp = ("THOUGHT\n```mswea_bash_command\ncat <<'EOF' > _autose_out/spec.md\nissue:\n```python\n"
             "x = 1\n```\nend\nEOF\n```\n")
-    acts = parse_regex_actions(resp, action_regex=agents.ACTION_REGEX, format_error_template='x')
-    assert len(acts) == 1 and acts[0]['command'].endswith('end\nEOF')
+    acts = agents.split_actions(resp)
+    assert len(acts) == 1 and acts[0].endswith('end\nEOF')
+
+
+@pytest.mark.parametrize('reply, n', [
+    # PR 12 review: several blocks in one reply must stay several (and so a format error)
+    ("```mswea_bash_command\nmkdir -p _review\n``````mswea_bash_command\npython -m pytest -q x\n```", 2),
+    ("```mswea_bash_command\ncat > t.py <<'EOF'\nx = 1\nEOF\n```\n```mswea_bash_command\npytest t.py\n```", 2),
+    ("```mswea_bash_command\ncat > t.py <<'EOF'\nx = 1\n```", 1),        # unterminated heredoc
+    ("```mswea_bash_command\ncat _autose_out/design.md\n```@@baz\n```mswea_bash_command\nls\n```", 2),
+    ("```mswea_bash_command\npython -c 'print(1 << 2)'\n```", 1),
+    ("no block here", 0),
+])
+def test_blocks_in_one_reply_are_counted(reply, n):
+    from autose import agents
+    assert len(agents.split_actions(reply)) == n
 
 
 def test_spec_vague_and_missing():

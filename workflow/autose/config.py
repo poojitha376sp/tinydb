@@ -4,6 +4,7 @@ import os
 # ADR-002 / ADR-009: bounded loops
 MAX_BUILD_ATTEMPTS = 3          # stage 3 -> 4b retries before giving up
 MAX_DESIGN_ESCALATIONS = 1      # same failure twice -> back to stage 2, at most once
+MAX_TEST_REPAIRS = 1            # same test failure twice -> Test Author may fix its test, once
 MAX_STAGE_TRIES = 2             # stages 1, 2, 4a: one retry with the gate's feedback
 MAX_REVIEW_ROUNDS = 2           # ADR-002: at most two review rounds
 

@@ -5,7 +5,8 @@
     4a Test Author -> tests         gate: check_red (every new test fails on the base code)
     3 Builder -> code change        gate: check_build (compile, import, mypy, scope)
     4b run all tests                gate: check_green; fail -> back to 3 (max 3 attempts),
-                                    same failure twice -> back to 2 (once)
+                                    same failure twice -> Test Author may fix a wrong test (once),
+                                    then back to 2 (once)
     5 Release (plain code)          push branch, open/update PR, dispatch CI, wait for green
 
 Usage (from .github/workflows/autose.yml):
@@ -46,6 +47,7 @@ class Run:
                         'arch_context': args.arch_context, 'stages': {}, 'run_url': gh.run_url()}
         self.st = None
         self.test_file = f'tests/test_autose_issue{args.issue}.py'
+        self.test_repairs = 0
 
     # --- bookkeeping ------------------------------------------------------------
 
@@ -187,6 +189,48 @@ class Run:
             feedback = '\n\nYour previous tests failed the automatic check:\n- ' + '\n- '.join(gate.problems)
         raise Stop('4a-tests', gate.summary())
 
+    def repair_tests(self, spec, acs, tests_src, failure):
+        """Same tests failed twice on the built code: the test itself may be wrong.
+
+        Issue 10 (try 2): the code was right (hidden test green) but the generated test called
+        table.get(doc_id), which TinyDB reads as a query, so three Builder attempts could never
+        pass it. The Test Author sees only the failure messages, never the code, and the
+        corrected test must still be red on the base code. Returns the new tests or None.
+        """
+        t0 = time.time()
+        tree = self.fresh_tree('test_author_repair', {'spec.md': spec, 'failure.md': failure})
+        (tree / self.test_file).write_text(tests_src)
+        task = (f'Your acceptance tests in {self.test_file} were run against an implementation of the '
+                'specification, and the same tests failed twice; _autose_out/failure.md has the '
+                'messages. Decide whether a TEST is wrong, for example because it calls the TinyDB '
+                'API with the wrong arguments (check the signatures in tinydb/). If so, fix only that '
+                'mistake in the test. Never weaken, skip or remove what an acceptance criterion checks. '
+                'If the tests are right, change nothing. Acceptance criteria ids: ' + ', '.join(acs) + '.')
+        run = agents.run_agent('test_author', 'test_author', task, tree,
+                               self.out / 'trajectories' / 'test_author_repair.json')
+        if run['exit_status'].startswith(('Error', 'TokenCapExceeded', 'QuotaExhausted')):
+            self.record('4a-test-repair', 'error', run['exit_status'], agent=run)
+            return None
+        self.enforce_writes('test_author', tree)
+        for p in sandbox.changed_files(self.base, tree)['added']:
+            if p.startswith('tests/') and p != self.test_file:
+                sandbox.revert(self.base, tree, p)
+        src = tree / self.test_file
+        new = src.read_text() if src.exists() else tests_src
+        secs = round(time.time() - t0)
+        if new == tests_src:
+            self.record('4a-test-repair', 'unchanged', 'the Test Author kept its tests', agent=run, seconds=secs)
+            return None
+        gate = checks.check_red(tree, self.test_file, acs)
+        if not gate.ok:
+            self.record('4a-test-repair', 'rejected', gate.summary()[:300], agent=run, seconds=secs)
+            return None
+        self.write(Path(self.test_file).name, new)
+        self.write('tests_before_repair.py', tests_src)
+        self.record('4a-test-repair', 'pass', 'tests corrected after the same failure twice; still red on base',
+                    agent=run, seconds=secs)
+        return new
+
     def build_loop(self, spec, design, planned, tests_src, acs, review_feedback=''):
         attempt, prev_sig, feedback = 0, None, review_feedback
         tree = None
@@ -230,7 +274,7 @@ class Run:
                     self.write('test_report.md', self.test_report(report, green))
                     self.record('4b-testing', 'pass',
                                 f'{green.data["passed"]}/{green.data["total"]} tests pass', attempts=attempt)
-                    return tree, changed
+                    return tree, changed, tests_src
                 sig = green.data['signature']
                 feedback = ('These tests failed after your change (names and error messages only):\n' +
                             '\n'.join(f'- {t.split("::")[-1]}: {r["message"]}'
@@ -245,6 +289,32 @@ class Run:
                 self.record('3-implementation', 'retry', build.summary()[:200], attempt=attempt,
                             agent=run, reverted=reverted)
             self.write('test_report.md', self.test_report(report, None))
+
+            if sig == prev_sig and build.ok and self.test_repairs < config.MAX_TEST_REPAIRS:
+                self.test_repairs += 1
+                fixed = self.repair_tests(spec, acs, tests_src, feedback)
+                if fixed:
+                    tests_src = fixed
+                    (eval_tree / self.test_file).write_text(tests_src)
+                    green = checks.check_green(eval_tree, self.test_file, acs)
+                    report.append({'attempt': f'{attempt} (tests repaired)', 'reverted': [],
+                                   'build': build.summary(),
+                                   'tests': {'passed': green.data['passed'], 'total': green.data['total'],
+                                             'failing': list(green.data['failing'])}})
+                    if green.ok:
+                        self.write('test_report.md', self.test_report(report, green))
+                        self.record('4b-testing', 'pass', f'{green.data["passed"]}/{green.data["total"]} '
+                                    'tests pass after the test repair', attempts=attempt)
+                        return tree, changed, tests_src
+                    self.write('test_report.md', self.test_report(report, None))
+                    sig = green.data['signature']
+                    feedback = ('These tests failed after your change (names and error messages only):\n' +
+                                '\n'.join(f'- {t.split("::")[-1]}: {r["message"]}'
+                                          for t, r in green.data['failing'].items()))
+                    prev_sig = sig
+                    if attempt >= config.MAX_BUILD_ATTEMPTS:
+                        raise Stop('4b-testing', f'tests still failing after {attempt} attempts and a test repair')
+                    continue
 
             if sig == prev_sig and self.st.design_escalations < config.MAX_DESIGN_ESCALATIONS:
                 # Same failure twice: the plan is probably wrong (ADR-009 stuck detection)
@@ -377,7 +447,7 @@ class Run:
                 self.write(tests_name, tests_src)
             fb = ('The independent reviewer requested these changes:\n' + review_feedback
                   if review_feedback and resume == 3 else '')
-            tree, changed = self.build_loop(spec, design, planned, tests_src, acs, fb)
+            tree, changed, tests_src = self.build_loop(spec, design, planned, tests_src, acs, fb)
             if self.args.stop_after <= 4:
                 self.st.status = 'stopped'
                 self.st.note = 'experiment run: stopped after stage 4 as requested'
