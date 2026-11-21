@@ -1,7 +1,8 @@
 """Stage 6, part 1: the independent Reviewer (ADR-008).
 
 Runs in its own job whose token can only read the repository; the model
-is on Groq (not a Google model, unlike the build roles). It sees the issue, the diff and a checkout of the PR head
+is Nemotron 3 Ultra on NVIDIA's free API, with Mistral, MiniMax and Groq's gpt-oss as fallbacks
+(not a Google model, unlike the build roles). It sees the issue, the diff and a checkout of the PR head
 (plus ARCHITECTURE.md); never spec.md, design.md, test reports or any
 transcript. Its JSON verdict is then checked by plain code:
 
@@ -43,6 +44,33 @@ def _ran(cmd: str, cmds) -> bool:
     """The cited command must be (part of) a command that was really run, not the other way round."""
     cmd = ' '.join((cmd or '').split())
     return len(cmd) >= 4 and any(cmd in ' '.join(c.split()) for c in cmds)
+
+
+def evidence_gaps(tree: Path):
+    """A check run when the Reviewer tries to finish: the judge's evidence rules, said early.
+
+    PR 15 review (twice): APPROVE citing a break-it test that was never run, so the result was
+    INCONCLUSIVE. Now the Reviewer is told before it finishes (at most 3 times; see agents.py).
+    """
+    def check(env):
+        try:
+            raw = json.loads((tree / '_autose_out/review.json').read_text())
+        except Exception as e:
+            return f'Not finished: _autose_out/review.json is not valid JSON ({e}). Fix it first.'
+        gaps = []
+        bk = (raw.get('break_it') or {}).get('command', '')
+        if raw.get('verdict') == 'APPROVE' and not (_ran(bk, env.ran) and (tree / '_review').exists()):
+            gaps.append('break_it.command was never run in this session: write a test under _review/, '
+                        'run it, and put that exact command in break_it.command')
+        for f in raw.get('findings', []) or []:
+            if not _ran(f.get('evidence_command', ''), env.ran):
+                gaps.append(f'the evidence_command of the finding "{str(f.get("claim", ""))[:60]}" was '
+                            'never run: run it and cite it exactly, or remove the finding')
+        if gaps:
+            return ('Not finished: ' + '; '.join(gaps) + '. Plain code checks this after you finish '
+                    'and ignores any claim whose command was not run.')
+        return None
+    return check
 
 
 def judge(raw: dict, cmds, tree: Path, variant: str) -> dict:
@@ -149,7 +177,8 @@ def main(argv=None):
 
     traj = out / 'reviewer_trajectory.json'
     run = agents.run_agent('reviewer', prompt, task, tree, traj, models=models,
-                           required=['_autose_out/review.json'])
+                           required=['_autose_out/review.json'],
+                           finish_check=evidence_gaps(tree) if args.variant == 'independent' else None)
     raw_path = tree / '_autose_out/review.json'
     try:
         raw = json.loads(raw_path.read_text())
