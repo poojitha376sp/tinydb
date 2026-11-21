@@ -328,13 +328,22 @@ class FallbackModel(LitellmTextbasedModel):
 class GuardedEnvironment(LocalEnvironment):
     """Runs each command through the role allowlist, as the sandbox user."""
 
-    def __init__(self, role: str, cwd: Path):
+    def __init__(self, role: str, cwd: Path, required=()):
         super().__init__(cwd=str(cwd), timeout=config.COMMAND_TIMEOUT)
         self.role = role
         self.blocked = []
+        self.required = tuple(required)   # files that must exist before the agent may finish
+        self.early_submits = 0
 
     def execute(self, action: dict, cwd: str = '', *, timeout=None) -> dict:
         command = action.get('command', '')
+        missing = [r for r in self.required if not (Path(self.config.cwd) / r).is_file()]
+        if missing and 'COMPLETE_TASK_AND_SUBMIT_FINAL_OUTPUT' in command:
+            # PR 15 review: gpt-oss submitted at its first step without writing review.json
+            self.early_submits += 1
+            return {'output': f'Not finished: {", ".join(missing)} does not exist yet. Do the task and '
+                              'write that file first; only then finish.',
+                    'returncode': 1, 'exception_info': ''}
         reason = guard.check_command(command, self.role)
         if reason:
             self.blocked.append({'command': command[:300], 'reason': reason})
@@ -362,11 +371,11 @@ def load_prompt(name: str) -> str:
 
 
 def run_agent(role: str, prompt_name: str, task: str, workdir: Path, trajectory: Path,
-              models=None) -> dict:
+              models=None, required=()) -> dict:
     """Run one agent session; return exit status, steps, tokens and blocked commands."""
     models = models or config.BUILD_MODELS
     model = FallbackModel(role, models)
-    env = GuardedEnvironment(role, workdir)
+    env = GuardedEnvironment(role, workdir, required)
     system = SYSTEM_COMMON.format(allowed=', '.join(sorted(guard.ALLOW[role]))) + '\n' + load_prompt(prompt_name)
     agent = DefaultAgent(
         model, env,
@@ -403,4 +412,5 @@ def run_agent(role: str, prompt_name: str, task: str, workdir: Path, trajectory:
         'error': error,
         'switches': model.switches,
         'recovered_from_reasoning': model.recovered,
+        'early_submits': env.early_submits,
     }

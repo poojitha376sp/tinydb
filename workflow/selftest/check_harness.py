@@ -243,3 +243,13 @@ def test_backticks_in_double_quotes_get_a_useful_reason():
     # issue 10: bash would run `~tinydb.database.TinyDB.close` and corrupt the file
     reason = guard.check_command('python3 -c "doc = \':meth:`~tinydb.database.TinyDB.close`\'"', 'builder')
     assert reason and "<<'EOF'" in reason
+
+
+def test_agent_cannot_finish_before_its_file_exists(tmp_path):
+    # PR 15 review: gpt-oss submitted at its first step without writing review.json
+    from autose import agents
+    (tmp_path / '_autose_out').mkdir()
+    env = agents.GuardedEnvironment('reviewer', tmp_path, ['_autose_out/review.json'])
+    out = env.execute({'command': 'echo COMPLETE_TASK_AND_SUBMIT_FINAL_OUTPUT'})
+    assert out['returncode'] == 1 and 'review.json does not exist' in out['output']
+    assert env.early_submits == 1
