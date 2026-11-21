@@ -68,9 +68,14 @@ def reply(cmd):
         usage={'prompt_tokens': 100, 'completion_tokens': 10, 'total_tokens': 110})
 
 
+LIVE = {}
+
+
 @pytest.fixture
 def scripted(monkeypatch, tmp_path):
     queues = {k: list(v) for k, v in SCRIPTS.items()}
+    LIVE.clear()
+    LIVE.update(queues)          # a test may replace a role's script before running
 
     def fake_query(self, messages, **kwargs):
         system = messages[0]['content']
@@ -78,7 +83,7 @@ def scripted(monkeypatch, tmp_path):
             if _marker(name) in system:
                 agents.USAGE[self.role].calls += 1
                 agents.USAGE[self.role].prompt += 100
-                return reply(queues[name].pop(0))
+                return reply(LIVE[name].pop(0))
         raise AssertionError('unknown role')
 
     monkeypatch.setattr(agents.FallbackModel, '_query', fake_query)
@@ -356,3 +361,24 @@ def test_command_only_in_reasoning_is_recovered():
     assert not agents._recover_action(two)          # never guess between two commands
     has = _reply('```mswea_bash_command\nls\n```', '```mswea_bash_command\npwd\n```')
     assert not agents._recover_action(has) and has.choices[0].message.content.endswith('ls\n```')
+
+
+# Issue 10 (try 2): the code was right but the generated test misused the API, so every Builder
+# attempt failed the same way. The Test Author may now fix its own test once.
+WRONG_TESTS = TESTS.replace(
+    "    assert [d.doc_id",
+    "    assert db.get(2) is not None   # wrong: get's first argument is a query\n    assert [d.doc_id")
+FIX_FROM_BASE = "sed -i \"s/('fragment', freeze(document)),/('fragment', self._path, freeze(document)),/\" tinydb/queries.py"
+
+
+def test_wrong_test_is_repaired_once(scripted, tmp_path):
+    LIVE['test_author'][:] = [WRONG_TESTS, DONE, TESTS, DONE]
+    LIVE['builder'][:] = [FIX_FROM_BASE, DONE, 'head -3 tinydb/queries.py', DONE]
+    out = tmp_path / 'out'
+    args = orchestrator.parse_args(['--issue', '1', '--stop-after', '4', '--out', str(out)])
+    assert orchestrator.Run(args).main() == 'stopped-after-4'
+    res = json.loads((out / 'stage_results.json').read_text())
+    assert res['stages']['4a-test-repair']['status'] == 'pass', res
+    assert 'after the test repair' in res['stages']['4b-testing']['summary']
+    assert 'db.get(2)' in (out / 'tests_before_repair.py').read_text()
+    assert 'db.get(2)' not in (out / 'test_autose_issue1.py').read_text()
