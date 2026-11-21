@@ -37,12 +37,18 @@ GEMINI_THINKING = os.environ.get('AUTOSE_GEMINI_THINKING', 'low')
 # Run 5: GitHub Models answered every request with a bare "OK" (HTTP 200) on this account, and
 # Groq had retired llama-3.3-70b. A probe found gpt-oss-120b and qwen3.8-27b on Groq, both with
 # 1000 requests/day but 8000 tokens/minute; neither is a Google model (ADR-008 independence).
+# 21 Nov: Groq's daily token quota ran out for both models halfway through E1. Cerebras needs a
+# payment method and NVIDIA's free API had retired gpt-oss, so a probe of NVIDIA's free models
+# picked Nemotron 3 Ultra (fast, correct action format, not Google), then Mistral Large 4 and
+# MiniMax M3.1 Flash. Groq stays last in case its daily quota has come back.
 REVIEW_MODELS = [m.strip() for m in os.environ.get(
     'AUTOSE_REVIEW_MODELS',
-    'groq/openai/gpt-oss-120b,groq/qwen/qwen3.8-27b',
+    'nvidia_nim/nvidia/nemotron-3-ultra-550b-a55b,nvidia_nim/mistralai/mistral-large-4-1t-a52b,'
+    'nvidia_nim/minimaxai/minimax-m3.1-flash,groq/openai/gpt-oss-120b',
 ).split(',') if m.strip()]
 # Per-request input budget (tokens) for models with small free limits; see agents.fit_messages.
-CONTEXT_BUDGET = {'groq/': int(os.environ.get('AUTOSE_GROQ_BUDGET', 5000))}
+CONTEXT_BUDGET = {'groq/': int(os.environ.get('AUTOSE_GROQ_BUDGET', 5000)),
+                  'nvidia_nim/': int(os.environ.get('AUTOSE_NVIDIA_BUDGET', 20000))}
 BUDGET_MAX_OUTPUT = 2500
 
 # ADR-010: trigger label and labels the workflow sets

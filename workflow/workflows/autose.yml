@@ -48,7 +48,7 @@ concurrency:
 env:
   PYTHON_VERSION: '3.12'
   AUTOSE_BUILD_MODELS: ${{ vars.AUTOSE_BUILD_MODELS || 'gemini/gemini-3.5-flash-lite,gemini/gemini-3.1-flash-lite,gemini/gemini-flash-lite-latest,gemini/gemini-3-flash-preview,gemini/gemini-3.8-flash,gemini/gemini-3.7-flash,gemini/gemma-4-31b-it' }}
-  AUTOSE_REVIEW_MODELS: ${{ vars.AUTOSE_REVIEW_MODELS || 'groq/openai/gpt-oss-120b,groq/qwen/qwen3.8-27b' }}
+  AUTOSE_REVIEW_MODELS: ${{ vars.AUTOSE_REVIEW_MODELS || 'nvidia_nim/nvidia/nemotron-3-ultra-550b-a55b,nvidia_nim/mistralai/mistral-large-4-1t-a52b,nvidia_nim/minimaxai/minimax-m3.1-flash,groq/openai/gpt-oss-120b' }}
 
 jobs:
   # ADR-010: decide whether this event may start a run. No checkout, no secrets.
@@ -147,7 +147,7 @@ jobs:
           path: out/
           if-no-files-found: warn
 
-  # Stage 6, part 1: the Reviewer. Its token can only read; the model is on Groq (ADR-008).
+  # Stage 6, part 1: the Reviewer. Its token can only read; the model is Nemotron 3 Ultra on NVIDIA's free API, then fallbacks (ADR-008).
   review-run:
     needs: [gate, orchestrate]
     if: >-
@@ -189,6 +189,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+          NVIDIA_API_KEY: ${{ secrets.NVIDIA_API_KEY }}
           PR: ${{ inputs.review_pr || needs.orchestrate.outputs.pr }}
           ISSUE: ${{ needs.gate.outputs.issue }}
           ROUND: ${{ inputs.round || '0' }}

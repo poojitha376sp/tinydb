@@ -253,3 +253,31 @@ def test_agent_cannot_finish_before_its_file_exists(tmp_path):
     out = env.execute({'command': 'echo COMPLETE_TASK_AND_SUBMIT_FINAL_OUTPUT'})
     assert out['returncode'] == 1 and 'review.json does not exist' in out['output']
     assert env.early_submits == 1
+
+
+def test_reviewer_cannot_finish_on_an_unrun_break_it(tmp_path):
+    # PR 15 review: APPROVE citing a break-it test that was never run
+    import json
+    from autose import agents, review
+    (tmp_path / '_autose_out').mkdir()
+    (tmp_path / '_autose_out/review.json').write_text(json.dumps(
+        {'verdict': 'APPROVE', 'break_it': {'command': 'python -m pytest -q _review'}, 'findings': []}))
+    env = agents.GuardedEnvironment('reviewer', tmp_path, ['_autose_out/review.json'],
+                                    review.evidence_gaps(tmp_path))
+    out = env.execute({'command': 'echo COMPLETE_TASK_AND_SUBMIT_FINAL_OUTPUT'})
+    assert out['returncode'] == 1 and 'never run' in out['output']
+    (tmp_path / '_review').mkdir()
+    env.ran.append('python -m pytest -q _review')
+    assert review.evidence_gaps(tmp_path)(env) is None
+
+
+def test_reviewer_chain_is_not_google_and_maps_keys(monkeypatch):
+    """ADR-008: the Reviewer must not be a Google model. NVIDIA names keep their model id after
+    the nvidia_nim/ prefix and take the key from NVIDIA_API_KEY."""
+    from autose import agents, config
+    assert config.REVIEW_MODELS and not any(m.startswith('gemini/') or 'gemma' in m
+                                            for m in config.REVIEW_MODELS)
+    monkeypatch.setenv('NVIDIA_API_KEY', 'k')
+    name, kw = agents._provider_kwargs('nvidia_nim/nvidia/nemotron-3-ultra-550b-a55b')
+    assert name == 'nvidia_nim/nvidia/nemotron-3-ultra-550b-a55b' and kw == {'api_key': 'k'}
+    assert agents._budget(name) == config.CONTEXT_BUDGET['nvidia_nim/']

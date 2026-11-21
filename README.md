@@ -53,7 +53,7 @@ the issue text is wrapped as untrusted data; the run stops at a token cap.
 | Role | Model | Where the key comes from |
 |---|---|---|
 | Analyst, Test Author, Builder | a chain of free Google models, starting with `gemini-3.5-flash-lite` and `gemini-3.1-flash-lite` (500 free requests a day each) (full list in [config.py](workflow/autose/config.py)); a busy model hands over to the next, a model whose daily quota is used up is dropped | Google AI Studio key, secret `GEMINI_API_KEY` |
-| Reviewer | `openai/gpt-oss-120b` on Groq, falling back to `qwen/qwen3.8-27b` on Groq | Groq key, secret `GROQ_API_KEY` |
+| Reviewer | `nvidia/nemotron-3-ultra-550b-a55b` on NVIDIA's free API (build.nvidia.com), falling back to Mistral Large 4, MiniMax M3.1 Flash and then `gpt-oss-120b` on Groq | secrets `NVIDIA_API_KEY` and `GROQ_API_KEY` |
 
 The Reviewer is from a different model family than the Builder on purpose (ADR-006, ADR-008).
 Models can be changed without code changes through the repository variables
@@ -74,7 +74,8 @@ Experiments use **Actions -> autose -> Run workflow** with inputs:
 
 ## Setup for your own copy
 
-1. Fork, then add the repository secrets `GEMINI_API_KEY` and `GROQ_API_KEY`.
+1. Fork, then add the repository secrets `GEMINI_API_KEY`, `NVIDIA_API_KEY` and `GROQ_API_KEY`.
+   On a fork, also open the Actions tab once and re-enable workflows (GitHub turns them off on forks).
 2. Settings -> Actions -> General -> Workflow permissions: allow GitHub Actions to create pull requests.
 3. Protect `master` so the workflow can never push to it.
 
